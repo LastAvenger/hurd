@@ -42,10 +42,10 @@ static size_t contents_len = sizeof hello - 1;
 int trivfs_fstype = FSTYPE_MISC;
 int trivfs_fsid = 0;
 
-int trivfs_allow_open = O_READ;
+int trivfs_allow_open = O_READ  | O_WRITE;
 
 int trivfs_support_read = 1;
-int trivfs_support_write = 0;
+int trivfs_support_write = 1;
 int trivfs_support_exec = 0;
 
 /* NOTE: This example is not robust: it is possible to trigger some
@@ -158,6 +158,30 @@ trivfs_S_io_read (struct trivfs_protid *cred,
   return 0;
 }
 
+kern_return_t
+trivfs_S_io_write (struct trivfs_protid *cred,
+          mach_port_t reply, mach_msg_type_name_t replytype,
+          data_t data, mach_msg_type_number_t data_len,
+          loff_t offs, mach_msg_type_number_t *amout)
+{
+    if (!cred)
+        return EOPNOTSUPP;
+    else if (!(cred->po->openmodes & O_WRITE))
+        return EBADF;
+
+    printf("write!\n");
+    *amout = data_len;
+    return 0;
+}
+
+kern_return_t
+trivfs_S_file_set_size (struct trivfs_protid *cred, off_t size)
+{
+    if (!cred)
+        return EOPNOTSUPP;
+    else
+        return 0;
+}
 
 /* Change current read/write offset */
 error_t
