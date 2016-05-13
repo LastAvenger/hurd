@@ -26,12 +26,12 @@
 /* FIXME: used for XATTR_CREATE and XATTR_REPLACE. */
 #include <sys/xattr.h>
 
-struct
+struct _xattr_prefix
 {
   int index;
   char *prefix;
   ssize_t size;
-} _xattr_prefix;
+};
 
 /* Prefixes are represented as numbers when stored in ext2 filesystems. */
 struct _xattr_prefix
@@ -341,14 +341,14 @@ diskfs_list_xattr (struct node *np, char **buffer, int *len)
 
   int size = *len;
 
-  if (!EXT2_HAS_COMPAT_FEATURE (sblock, EXT2_FEATURE_COMPAT_EXT_ATTR))
-    {
+  // if (!EXT2_HAS_COMPAT_FEATURE (sblock, EXT2_FEATURE_COMPAT_EXT_ATTR))
+    // {
       /* FIXME: remove warning */
-      ext2_warning ("Filesystem has no support for extended attributes.");
-      return EOPNOTSUPP;
-    }
+      // ext2_warning ("Filesystem has no support for extended attributes.");
+      // return EOPNOTSUPP;
+    // }
 
-  ei = dino_lookup (np->cache_id);
+  ei = dino_ref (np->cache_id);
 
   blkno = ei->i_file_acl;
 
@@ -358,7 +358,7 @@ diskfs_list_xattr (struct node *np, char **buffer, int *len)
       return 0;
     }
 
-  block = buffer_lookup (blkno);
+  block = disk_cache_block_ref (blkno);
 
   header = EXT2_XATTR_HEADER (block);
   if (header->magic != EXT2_XATTR_BLOCK_MAGIC || header->blocks != 1)
@@ -372,7 +372,8 @@ diskfs_list_xattr (struct node *np, char **buffer, int *len)
   entry = EXT2_XATTR_ENTRY_FIRST (header);
   while (!EXT2_XATTR_ENTRY_LAST (entry))
     {
-      xattr_entry_list (entry, &buffer, &size);
+        // TODO:
+      xattr_entry_list (entry, buffer, &size);
       entry = EXT2_XATTR_ENTRY_NEXT (entry);
     }
 
@@ -408,14 +409,14 @@ diskfs_get_xattr (struct node *np, char *name, char *value, int *len)
   else
     size = 0;
 
-  if (!EXT2_HAS_COMPAT_FEATURE (sblock, EXT2_FEATURE_COMPAT_EXT_ATTR))
-    {
+  // if (!EXT2_HAS_COMPAT_FEATURE (sblock, EXT2_FEATURE_COMPAT_EXT_ATTR))
+    // {
       /* FIXME: remove warning */
-      ext2_warning ("Filesystem has no support for extended attributes.");
-      return EOPNOTSUPP;
-    }
+      // ext2_warning ("Filesystem has no support for extended attributes.");
+      // return EOPNOTSUPP;
+    // }
 
-  ei = dino_lookup (np->cache_id);
+  ei = dino_ref (np->cache_id);
 
   blkno = ei->i_file_acl;
 
@@ -424,7 +425,7 @@ diskfs_get_xattr (struct node *np, char *name, char *value, int *len)
       return ENODATA;
     }
 
-  block = buffer_lookup (blkno);
+  block = disk_cache_block_ref (blkno);
 
   header = EXT2_XATTR_HEADER (block);
   if (header->magic != EXT2_XATTR_BLOCK_MAGIC || header->blocks != 1)
@@ -483,14 +484,14 @@ diskfs_set_xattr (struct node *np, char *name, char *value, int len,
   int found;
   int rest;
 
-  if (!EXT2_HAS_COMPAT_FEATURE (sblock, EXT2_FEATURE_COMPAT_EXT_ATTR))
-    {
+  // if (!EXT2_HAS_COMPAT_FEATURE (sblock, EXT2_FEATURE_COMPAT_EXT_ATTR))
+    // {
       /* FIXME: remove warning */
-      ext2_warning ("Filesystem has no support for extended attributes.");
-      return EOPNOTSUPP;
-    }
+      // ext2_warning ("Filesystem has no support for extended attributes.");
+      // return EOPNOTSUPP;
+    // }
 
-  ei = dino_lookup (np->cache_id);
+  ei = dino_ref (np->cache_id);
 
   blkno = ei->i_file_acl;
 
@@ -501,7 +502,7 @@ diskfs_set_xattr (struct node *np, char *name, char *value, int len,
       goal = sblock->s_first_data_block + np->dn->info.i_block_group *
 	EXT2_BLOCKS_PER_GROUP (sblock);
       blkno = ext2_new_block (goal, 0, 0, 0);
-      block = buffer_lookup (blkno);
+      block = disk_cache_block_ref (blkno);
       memset (block, 0, block_size);
       header = EXT2_XATTR_HEADER (block);
       header->magic = EXT2_XATTR_BLOCK_MAGIC;
@@ -510,7 +511,7 @@ diskfs_set_xattr (struct node *np, char *name, char *value, int len,
     }
   else
     {
-      block = buffer_lookup (blkno);
+      block = disk_cache_block_ref (blkno);
       header = EXT2_XATTR_HEADER (block);
       if (header->magic != EXT2_XATTR_BLOCK_MAGIC || header->blocks != 1)
 	{
