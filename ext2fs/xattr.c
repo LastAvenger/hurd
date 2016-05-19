@@ -246,7 +246,7 @@ xattr_entry_remove (ext2_xattr_header * header,
 
   memmove ((char *) header + start + size, (char *) header + start,
 	   end - start);
-  memest ((char *) header + start, 0, end - start);
+  memset ((char *) header + start, 0, end - start);
 
   entry = EXT2_XATTR_ENTRY_FIRST (header);
   while (!EXT2_XATTR_ENTRY_LAST (entry))
@@ -524,7 +524,7 @@ diskfs_set_xattr (struct node *np, char *name, char *value, int len,
     }
   else
     {
-      block = diskfs_cache_block_ref (blkno);
+      block = disk_cache_block_ref (blkno);
       header = EXT2_XATTR_HEADER (block);
       if (header->magic != EXT2_XATTR_BLOCK_MAGIC || header->blocks != 1)
 	{
