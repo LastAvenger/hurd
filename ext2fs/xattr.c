@@ -239,12 +239,16 @@ xattr_entry_remove (ext2_xattr_header * header,
   off_t end;
   ext2_xattr_entry *entry;
 
+  /* Remove attribute value */
   size = EXT2_XATTR_ALIGN (position->value_size);
-  start = EXT2_XATTR_ENTRY_OFFSET (header, last) + rest;
+  // is the entry `last` is reversed?
+  start = EXT2_XATTR_ENTRY_OFFSET (header, last)
+	   + EXT2_XATTR_ENTRY_SIZE (last->name_len) + rest;
   end = position->value_offset;
 
-  memmove ((char *) header + start, (char *) header + start + size,
+  memmove ((char *) header + start + size, (char *) header + start,
 	   end - start);
+  memest ((char *) header + start, 0, end - start);
 
   entry = EXT2_XATTR_ENTRY_FIRST (header);
   while (!EXT2_XATTR_ENTRY_LAST (entry))
@@ -254,11 +258,13 @@ xattr_entry_remove (ext2_xattr_header * header,
       entry = EXT2_XATTR_ENTRY_NEXT (entry);
     }
 
+  /* Remove attribute name */
   size = EXT2_XATTR_ENTRY_SIZE (position->name_len);
   start = EXT2_XATTR_ENTRY_OFFSET (header, position);
-  end = EXT2_XATTR_ENTRY_OFFSET (header, last);
+  end = EXT2_XATTR_ENTRY_OFFSET (header, last)
+	   + EXT2_XATTR_ENTRY_SIZE (last->name_len) + rest;
 
-  memmove ((char *) header + start + size, (char *) header + start,
+  memmove ((char *) header + start , (char *) header + start + size,
 	   end - (start + size));
 
   return 0;
@@ -298,7 +304,7 @@ xattr_entry_replace (ext2_xattr_header * header,
       start = EXT2_XATTR_ENTRY_OFFSET (header, last) + rest;
       end = position->value_offset;
 
-      memmove ((char *) header + start, (char *) header + start + old_size,
+      memmove ((char *) header + start + old_size, (char *) header + start,
 	       end - start);
 
       entry = EXT2_XATTR_ENTRY_FIRST (header);
