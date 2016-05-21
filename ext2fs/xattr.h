@@ -27,23 +27,23 @@
 /* xattr block header. */
 struct _ext2_xattr_header
 {
-  int magic;	/* magic number for identification */
-  int refcount;		/* reference count */
-  int blocks;	/* number of disk blocks used */
-  int hash;		/* hash value of all attributes */
-  int reserved[4];	/* zero right now */
+  int h_magic;	/* h_magic number for identification */
+  int h_refcount;	/* reference count */
+  int h_blocks;	/* number of disk blocks used */
+  int h_hash;	/* hash value of all attributes */
+  int h_reserved[4];	/* zero right now */
 };
 
 /* xattr entry in xattr block. */
 struct _ext2_xattr_entry
 {
-  char name_len;	/* length of name */
-  char name_index;	/* attribute name index */
-  short value_offset;	/* offset in disk block of value */
-  int value_block;	/* disk block attribute is stored on (n/i) */
-  int value_size;	/* size of attribute value */
-  int hash;		/* hash value of name and value */
-  char name[0];	/* attribute name */
+  char e_name_len;	/* length of name */
+  char e_name_index;	/* attribute name index */
+  short e_value_offs;	/* offset in disk block of value */
+  int e_value_block;	/* disk block attribute is stored on (n/i) */
+  int e_value_size;	/* size of attribute value */
+  int e_hash;		/* hash value of name and value */
+  char e_name[0];	/* attribute name */
 };
 
 typedef struct _ext2_xattr_header ext2_xattr_header;
@@ -76,7 +76,7 @@ typedef struct _ext2_xattr_entry ext2_xattr_entry;
 #define EXT2_XATTR_ENTRY_NEXT(entry) ((ext2_xattr_entry *) \
 				      ((char *) entry + \
 				       EXT2_XATTR_ENTRY_SIZE \
-				       (entry->name_len)))
+				       (entry->e_name_len)))
 
 /* Checks if this entry is the last (not valid) one. */
 #define EXT2_XATTR_ENTRY_LAST(entry) (*(unsigned long *) entry == 0UL)

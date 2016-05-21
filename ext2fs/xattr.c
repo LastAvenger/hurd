@@ -85,14 +85,14 @@ xattr_entry_list (ext2_xattr_entry * entry, char **buffer, int *len)
 
   for (i = 0; xattr_prefixes[i].prefix != NULL; i++)
     {
-      if (entry->name_index == xattr_prefixes[i].index)
+      if (entry->e_name_index == xattr_prefixes[i].index)
 	break;
     }
 
   if (xattr_prefixes[i].prefix == NULL)
     return EOPNOTSUPP;
 
-  size = xattr_prefixes[i].size + entry->name_len + 1;
+  size = xattr_prefixes[i].size + entry->e_name_len + 1;
 
   if (*buffer)
     {
@@ -100,8 +100,8 @@ xattr_entry_list (ext2_xattr_entry * entry, char **buffer, int *len)
 	{
 	  memcpy (*buffer, xattr_prefixes[i].prefix, xattr_prefixes[i].size);
 	  *buffer += xattr_prefixes[i].size;
-	  memcpy (*buffer, entry->name, entry->name_len + 1);
-	  *buffer += entry->name_len + 1;
+	  memcpy (*buffer, entry->e_name, entry->e_name_len + 1);
+	  *buffer += entry->e_name_len + 1;
 	}
       else
 	{
@@ -142,9 +142,9 @@ xattr_entry_get (char *block, ext2_xattr_entry * entry, char *fullname,
   if (xattr_prefixes[i].prefix == NULL)
     return EOPNOTSUPP;
 
-  comp = index - entry->name_index ||
-    strlen (name) - entry->name_len ||
-    strncmp (name, entry->name, entry->name_len);
+  comp = index - entry->e_name_index ||
+    strlen (name) - entry->e_name_len ||
+    strncmp (name, entry->e_name, entry->e_name_len);
 
   if (comp)
     {
@@ -155,14 +155,14 @@ xattr_entry_get (char *block, ext2_xattr_entry * entry, char *fullname,
 
   if (value)
     {
-      if (*len < entry->value_size)
+      if (*len < entry->e_value_size)
 	{
 	  return ERANGE;
 	}
-      memcpy (value, block + entry->value_offset, entry->value_size);
+      memcpy (value, block + entry->e_value_offs, entry->e_value_size);
     }
 
-  *len = entry->value_size;
+  *len = entry->e_value_size;
   return 0;
 
 }
@@ -206,17 +206,17 @@ xattr_entry_create (ext2_xattr_header * header,
   // (?)
   memmove ((char *) position + entry_size, position, end - start);
 
-  position->name_len = name_len;
-  position->name_index = index;
-  position->value_offset = end + rest - value_size;
-  position->value_block = 0;
+  position->e_name_len = name_len;
+  position->e_name_index = index;
+  position->e_value_offs = end + rest - value_size;
+  position->e_value_block = 0;
   // (?) while value_block always zero?
-  position->value_size = len;
-  position->hash = 0;
-  strncpy (position->name, name, name_len);
+  position->e_value_size = len;
+  position->e_hash = 0;
+  strncpy (position->e_name, name, name_len);
 
-  memcpy ((char *) header + position->value_offset, value, len);
-  memset ((char *) header + position->value_offset + len, 0,
+  memcpy ((char *) header + position->e_value_offs, value, len);
+  memset ((char *) header + position->e_value_offs + len, 0,
 	  value_size - len);
 
   return 0;
@@ -240,9 +240,9 @@ xattr_entry_remove (ext2_xattr_header * header,
   ext2_xattr_entry *entry;
 
   /* Remove attribute value */
-  size = EXT2_XATTR_ALIGN (position->value_size);
+  size = EXT2_XATTR_ALIGN (position->e_value_size);
   start = EXT2_XATTR_ENTRY_OFFSET (header, last) + rest;
-  end = position->value_offset;
+  end = position->e_value_offs;
 
   memmove ((char *) header + start + size, (char *) header + start,
 	   end - start);
@@ -251,13 +251,13 @@ xattr_entry_remove (ext2_xattr_header * header,
   entry = EXT2_XATTR_ENTRY_FIRST (header);
   while (!EXT2_XATTR_ENTRY_LAST (entry))
     {
-      if (entry->value_offset < end)
-	entry->value_offset += size;
+      if (entry->e_value_offs < end)
+	entry->e_value_offs += size;
       entry = EXT2_XATTR_ENTRY_NEXT (entry);
     }
 
   /* Remove attribute name */
-  size = EXT2_XATTR_ENTRY_SIZE (position->name_len);
+  size = EXT2_XATTR_ENTRY_SIZE (position->e_name_len);
   start = EXT2_XATTR_ENTRY_OFFSET (header, position);
   end = EXT2_XATTR_ENTRY_OFFSET (header, last) + rest;
 
@@ -285,7 +285,7 @@ xattr_entry_replace (ext2_xattr_header * header,
   ssize_t old_size;
   ssize_t new_size;
 
-  old_size = EXT2_XATTR_ALIGN (position->value_size);
+  old_size = EXT2_XATTR_ALIGN (position->e_value_size);
   new_size = EXT2_XATTR_ALIGN (len);
 
   if (new_size - old_size > rest)
@@ -299,7 +299,7 @@ xattr_entry_replace (ext2_xattr_header * header,
       ext2_xattr_entry *entry;
 
       start = EXT2_XATTR_ENTRY_OFFSET (header, last) + rest;
-      end = position->value_offset;
+      end = position->e_value_offs;
 
       memmove ((char *) header + start + old_size, (char *) header + start,
 	       end - start);
@@ -307,22 +307,22 @@ xattr_entry_replace (ext2_xattr_header * header,
       entry = EXT2_XATTR_ENTRY_FIRST (header);
       while (!EXT2_XATTR_ENTRY_LAST (entry))
 	{
-	  if (entry->value_offset < end)
-	    entry->value_offset += old_size;
+	  if (entry->e_value_offs < end)
+	    entry->e_value_offs += old_size;
 	  entry = EXT2_XATTR_ENTRY_NEXT (entry);
 	}
 
-      position->value_offset = start - (new_size - old_size);
-      position->value_size = len;
+      position->e_value_offs = start - (new_size - old_size);
+      position->e_value_size = len;
 
     }
   else
     {
-      position->value_size = len;
+      position->e_value_size = len;
     }
 
-  memcpy ((char *) header + position->value_offset, value, len);
-  memset ((char *) header + position->value_offset + len, 0, new_size - len);
+  memcpy ((char *) header + position->e_value_offs, value, len);
+  memset ((char *) header + position->e_value_offs + len, 0, new_size - len);
 
   return 0;
 
@@ -333,7 +333,7 @@ xattr_entry_replace (ext2_xattr_header * header,
  * Given a node, return its list of attribute names in a buffer.
  * Returns EOPNOTSUPP if underlying filesystem has no extended
  * attributes support.  Returns EIO if xattr block is invalid (has no
- * valid magic number).
+ * valid h_magic number).
  */
 error_t
 diskfs_list_xattr (struct node *np, char **buffer, int *len)
@@ -370,7 +370,7 @@ diskfs_list_xattr (struct node *np, char **buffer, int *len)
   block = disk_cache_block_ref (blkno);
 
   header = EXT2_XATTR_HEADER (block);
-  if (header->magic != EXT2_XATTR_BLOCK_MAGIC || header->blocks != 1)
+  if (header->h_magic != EXT2_XATTR_BLOCK_MAGIC || header->h_blocks != 1)
     {
       ext2_warning ("Invalid extended attribute block.");
       return EIO;
@@ -438,7 +438,7 @@ diskfs_get_xattr (struct node *np, char *name, char *value, int *len)
   block = disk_cache_block_ref (blkno);
 
   header = EXT2_XATTR_HEADER (block);
-  if (header->magic != EXT2_XATTR_BLOCK_MAGIC || header->blocks != 1)
+  if (header->h_magic != EXT2_XATTR_BLOCK_MAGIC || header->h_blocks != 1)
     {
       ext2_warning ("Invalid extended attribute block.");
       return EIO;
@@ -518,15 +518,15 @@ diskfs_set_xattr (struct node *np, char *name, char *value, int len,
       block = disk_cache_block_ref (blkno);
       memset (block, 0, block_size);
       header = EXT2_XATTR_HEADER (block);
-      header->magic = EXT2_XATTR_BLOCK_MAGIC;
-      header->blocks = 1;
-      header->refcount = 1;
+      header->h_magic = EXT2_XATTR_BLOCK_MAGIC;
+      header->h_blocks = 1;
+      header->h_refcount = 1;
     }
   else
     {
       block = disk_cache_block_ref (blkno);
       header = EXT2_XATTR_HEADER (block);
-      if (header->magic != EXT2_XATTR_BLOCK_MAGIC || header->blocks != 1)
+      if (header->h_magic != EXT2_XATTR_BLOCK_MAGIC || header->h_blocks != 1)
 	{
 	  ext2_warning ("Invalid extended attribute block.");
 	  return EIO;
@@ -560,7 +560,7 @@ diskfs_set_xattr (struct node *np, char *name, char *value, int len,
 	{
 	  break;
 	}
-      rest -= EXT2_XATTR_ALIGN (entry->value_size);
+      rest -= EXT2_XATTR_ALIGN (entry->e_value_size);
       entry = EXT2_XATTR_ENTRY_NEXT (entry);
     }
 
