@@ -18,6 +18,10 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA.
  */
 
+/* Enable debug output */
+#define EXT2FS_DEBUG
+int ext2_debug_flag = 1;
+
 #include "ext2fs.h"
 #include "xattr.h"
 #include <stdlib.h>
@@ -627,5 +631,7 @@ diskfs_set_xattr (struct node *np, char *name, char *value, int len,
 error_t
 diskfs_xattr_test (struct node *np)
 {
-  ext2_warning("%s", __FUNCTION__);
+  ext2_debug(":)");
+
+  return 0;
 }
