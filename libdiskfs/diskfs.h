@@ -1159,4 +1159,7 @@ struct store *diskfs_init_main (struct argp *startup_argp,
 /* Make errors go somewhere reasonable.  */
 void diskfs_console_stdio ();
 
+/* FIXME(XATTR): Temporary interface for xattr testing */
+error_t diskfs_xattr_test (struct node *np);
+
 #endif	/* hurd/diskfs.h */

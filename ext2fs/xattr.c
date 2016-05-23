@@ -623,3 +623,9 @@ diskfs_set_xattr (struct node *np, char *name, char *value, int len,
   return err;
 
 }
+
+error_t
+diskfs_xattr_test (struct node *np)
+{
+  ext2_warning("%s", __FUNCTION__);
+}
