@@ -400,10 +400,11 @@ diskfs_list_xattr (struct node *np, char *buffer, int *len)
 
   if (*len)
     entry = EXT2_XATTR_ENTRY_FIRST (header);
-  xattr_print_entry (entry);
   while (!EXT2_XATTR_ENTRY_LAST (entry))
     {
+      xattr_print_entry (entry);
       xattr_entry_list (entry, buffer, &size);
+      buffer += strlen(buffer) + 1;
       entry = EXT2_XATTR_ENTRY_NEXT (entry);
     }
 
