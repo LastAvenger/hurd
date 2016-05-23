@@ -42,9 +42,9 @@ struct _xattr_prefix
 xattr_prefixes[] =
 {
   {
-  1, "user.", sizeof "user."},
+  1, "user.", sizeof "user." - 1},
   {
-  7, "gnu.", sizeof "gnu."},
+  7, "gnu.", sizeof "gnu." - 1},
   {
   0, NULL, 0}
 };
@@ -71,6 +71,17 @@ xattr_name_prefix (char *full_name, int *index, char **name)
   return i;
 }
 
+void xattr_print_entry (ext2_xattr_entry *entry)
+{
+  ext2_debug ("entry: %x", entry);
+  ext2_debug ("\t->e_name_len: %d", entry->e_name_len);
+  ext2_debug ("\t->e_name_index: %d", entry->e_name_index);
+  ext2_debug ("\t->e_value_offs: %d", entry->e_value_offs);
+  ext2_debug ("\t->e_value_block: %d", entry->e_value_block);
+  ext2_debug ("\t->e_value_size: %d", entry->e_value_size);
+  ext2_debug ("\t->e_hash: %d", entry->e_hash);
+  ext2_debug ("\t->e_name: %.*s", entry->e_name_len, entry->e_name);
+}
 /*
  * Given an entry, appends its name to a buffer.  The provided buffer
  * length is reduced by the name size, even if the buffer is NULL (for
@@ -81,7 +92,7 @@ xattr_name_prefix (char *full_name, int *index, char **name)
  * 
  */
 error_t
-xattr_entry_list (ext2_xattr_entry * entry, char **buffer, int *len)
+xattr_entry_list (ext2_xattr_entry * entry, char *buffer, int *len)
 {
 
   int i;
@@ -96,16 +107,21 @@ xattr_entry_list (ext2_xattr_entry * entry, char **buffer, int *len)
   if (xattr_prefixes[i].prefix == NULL)
     return EOPNOTSUPP;
 
-  size = xattr_prefixes[i].size + entry->e_name_len + 1;
+  ext2_debug("prefix: %s, prefix_size: %d", xattr_prefixes[i].prefix,
+		  xattr_prefixes[i].size);
 
-  if (*buffer)
+  size = xattr_prefixes[i].size + entry->e_name_len + 1;
+  ext2_debug("attribute size: %d", size);
+
+  if (buffer)
     {
       if (size <= *len)
 	{
-	  memcpy (*buffer, xattr_prefixes[i].prefix, xattr_prefixes[i].size);
-	  *buffer += xattr_prefixes[i].size;
-	  memcpy (*buffer, entry->e_name, entry->e_name_len + 1);
-	  *buffer += entry->e_name_len + 1;
+	  memcpy (buffer, xattr_prefixes[i].prefix, xattr_prefixes[i].size);
+	  buffer += xattr_prefixes[i].size;
+	  memcpy (buffer, entry->e_name, entry->e_name_len);
+	  buffer += entry->e_name_len;
+      *buffer++ = 0;
 	}
       else
 	{
@@ -340,7 +356,7 @@ xattr_entry_replace (ext2_xattr_header * header,
  * valid h_magic number).
  */
 error_t
-diskfs_list_xattr (struct node *np, char **buffer, int *len)
+diskfs_list_xattr (struct node *np, char *buffer, int *len)
 {
 
   block_t blkno;
@@ -364,6 +380,7 @@ diskfs_list_xattr (struct node *np, char **buffer, int *len)
   ei = dino_ref (np->cache_id);
 
   blkno = ei->i_file_acl;
+  ext2_debug("blkno = %d", blkno);
 
   if (blkno == 0)
     {
@@ -379,9 +396,11 @@ diskfs_list_xattr (struct node *np, char **buffer, int *len)
       ext2_warning ("Invalid extended attribute block.");
       return EIO;
     }
+  ext2_debug("ext2 xattr block found");
 
   if (*len)
-    *buffer = entry = EXT2_XATTR_ENTRY_FIRST (header);
+    entry = EXT2_XATTR_ENTRY_FIRST (header);
+  xattr_print_entry (entry);
   while (!EXT2_XATTR_ENTRY_LAST (entry))
     {
       xattr_entry_list (entry, buffer, &size);
@@ -390,7 +409,6 @@ diskfs_list_xattr (struct node *np, char **buffer, int *len)
 
   *len = *len - size;
   return 0;
-
 }
 
 
@@ -631,7 +649,12 @@ diskfs_set_xattr (struct node *np, char *name, char *value, int len,
 error_t
 diskfs_xattr_test (struct node *np)
 {
-  ext2_debug(":)");
+  int len = 32;
+  char buf[32];
+
+  diskfs_list_xattr (np, buf, &len);
+  ext2_debug("len: %d", len);
+  ext2_debug("%.*s", len, buf);
 
   return 0;
 }

@@ -82,7 +82,7 @@ typedef struct _ext2_xattr_entry ext2_xattr_entry;
 #define EXT2_XATTR_ENTRY_LAST(entry) (*(unsigned long *) entry == 0UL)
 
 /* Public functions. */
-error_t diskfs_list_xattr (struct node *, char **, int *);
+error_t diskfs_list_xattr (struct node *, char *, int *);
 error_t diskfs_get_xattr (struct node *, char *, char *, int *);
 error_t diskfs_set_xattr (struct node *, char *, char *, int, int);
 error_t diskfs_xattr_test (struct node *);
