@@ -82,6 +82,7 @@ void xattr_print_entry (ext2_xattr_entry *entry)
   ext2_debug ("\t->e_hash: %d", entry->e_hash);
   ext2_debug ("\t->e_name: %.*s", entry->e_name_len, entry->e_name);
 }
+
 /*
  * Given an entry, appends its name to a buffer.  The provided buffer
  * length is reduced by the name size, even if the buffer is NULL (for
@@ -142,14 +143,11 @@ xattr_entry_list (ext2_xattr_entry * entry, char *buffer, int *len)
  * case there is not enough space in the buffer provided, ERANGE is
  * returned.  If the value buffer was NULL, the length is returned
  * through len parameter and the function is successfull (returns 0).
- * If the entry does not match the name, ENODATA is returned and
- * parameter cmp is set to the comparison value (more than 0 if a
- * matching entry should be before the current entry, less than 0
- * otherwise).
+ * If the entry does not match the name, ENODATA is returned.
  */
 error_t
 xattr_entry_get (char *block, ext2_xattr_entry * entry, char *full_name,
-		 char *value, int *len, int *cmp)
+		 char *value, int *len)
 {
 
   int i;
@@ -165,8 +163,6 @@ xattr_entry_get (char *block, ext2_xattr_entry * entry, char *full_name,
     || strlen (name) != entry->e_name_len
     || strncmp (name, entry->e_name, entry->e_name_len))
     {
-      if (cmp)
-	*cmp = 1;
       return ENODATA;
     }
 
@@ -207,6 +203,8 @@ xattr_entry_create (ext2_xattr_header * header,
 
   xattr_name_prefix (name, &index, &name);
   // (?) check ret val?
+  ext2_debug("name: %s, value: %s, len %d, rest: %d",
+	  name, value, len, rest);
 
   name_len = strlen (name);
   entry_size = EXT2_XATTR_ENTRY_SIZE (name_len);
@@ -220,17 +218,17 @@ xattr_entry_create (ext2_xattr_header * header,
   start = EXT2_XATTR_ENTRY_OFFSET (header, position);
   end = EXT2_XATTR_ENTRY_OFFSET (header, last);
 
-  // (?)
   memmove ((char *) position + entry_size, position, end - start);
 
   position->e_name_len = name_len;
   position->e_name_index = index;
   position->e_value_offs = end + rest - value_size;
   position->e_value_block = 0;
-  // (?) while value_block always zero?
+  // (?) why value_block always zero?
   position->e_value_size = len;
   position->e_hash = 0;
   strncpy (position->e_name, name, name_len);
+  xattr_print_entry(position);
 
   memcpy ((char *) header + position->e_value_offs, value, len);
   memset ((char *) header + position->e_value_offs + len, 0,
@@ -468,7 +466,7 @@ diskfs_get_xattr (struct node *np, char *name, char *value, int *len)
 
   while (!EXT2_XATTR_ENTRY_LAST (entry))
     {
-      if ((err = xattr_entry_get (block, entry, name, value, &size, NULL))
+      if ((err = xattr_entry_get (block, entry, name, value, &size))
 	  != ENODATA)
 	break;
       entry = EXT2_XATTR_ENTRY_NEXT (entry);
@@ -500,15 +498,15 @@ diskfs_set_xattr (struct node *np, char *name, char *value, int len,
 		  int flags)
 {
 
-  block_t blkno;
+  int err;
+  int found;
+  int rest;
   void *block;
+  block_t blkno;
   struct ext2_inode *ei;
   ext2_xattr_header *header;
   ext2_xattr_entry *entry;
   ext2_xattr_entry *location;
-  int err;
-  int found;
-  int rest;
 
   /* FIXME: macro EXT2_HAS_COMPAT_FEATURE not found */
   /*
@@ -523,6 +521,7 @@ diskfs_set_xattr (struct node *np, char *name, char *value, int len,
   ei = dino_ref (np->cache_id);
 
   blkno = ei->i_file_acl;
+  ext2_debug("blkno: %d", blkno);
 
   if (blkno == 0)
     {
@@ -553,6 +552,7 @@ diskfs_set_xattr (struct node *np, char *name, char *value, int len,
   location = NULL;
 
   rest = block_size;
+  ext2_debug("rest: %d", block_size);
 
   err = ENODATA;
   found = FALSE;
@@ -560,14 +560,13 @@ diskfs_set_xattr (struct node *np, char *name, char *value, int len,
   while (!EXT2_XATTR_ENTRY_LAST (entry))
     {
       int size;
-      int cmp;
-      err = xattr_entry_get (NULL, entry, name, NULL, &size, &cmp);
+      err = xattr_entry_get (NULL, entry, name, NULL, &size);
       if (err == 0)
 	{
 	  location = entry;
 	  found = TRUE;
 	}
-      else if (err == ENODATA && cmp < 0)
+      else if (err == ENODATA)
 	{
 	  location = entry;
 	  found = FALSE;
@@ -659,9 +658,20 @@ diskfs_xattr_test (struct node *np)
   }
   */
 
+  /*
   len = 32;
   memset(buf, 0, sizeof(len));
   diskfs_get_xattr (np, "user.key", buf, &len);
+  ext2_debug ("len: %d", len);
+  buf[len] = 0;
+  ext2_debug("value: %s", buf);
+  */
+
+  diskfs_set_xattr (np, "user.key3", "value3", sizeof ("value3") - 1, 0);
+
+  len = 32;
+  memset(buf, 0, sizeof (len));
+  diskfs_get_xattr (np, "user.key3", buf, &len);
   ext2_debug ("len: %d", len);
   buf[len] = 0;
   ext2_debug("value: %s", buf);
