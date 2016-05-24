@@ -73,7 +73,7 @@ xattr_name_prefix (char *full_name, int *index, char **name)
 
 void xattr_print_entry (ext2_xattr_entry *entry)
 {
-  ext2_debug ("entry: %x", entry);
+  ext2_debug ("entry:");
   ext2_debug ("\t->e_name_len: %d", entry->e_name_len);
   ext2_debug ("\t->e_name_index: %d", entry->e_name_index);
   ext2_debug ("\t->e_value_offs: %d", entry->e_value_offs);
@@ -148,28 +148,25 @@ xattr_entry_list (ext2_xattr_entry * entry, char *buffer, int *len)
  * otherwise).
  */
 error_t
-xattr_entry_get (char *block, ext2_xattr_entry * entry, char *fullname,
+xattr_entry_get (char *block, ext2_xattr_entry * entry, char *full_name,
 		 char *value, int *len, int *cmp)
 {
 
   int i;
   int index;
-  int comp;
   char *name;
 
-  i = xattr_name_prefix (fullname, &index, &name);
+  i = xattr_name_prefix (full_name, &index, &name);
 
   if (xattr_prefixes[i].prefix == NULL)
     return EOPNOTSUPP;
 
-  comp = index - entry->e_name_index ||
-    strlen (name) - entry->e_name_len ||
-    strncmp (name, entry->e_name, entry->e_name_len);
-
-  if (comp)
+  if (index != entry->e_name_index
+    || strlen (name) != entry->e_name_len
+    || strncmp (name, entry->e_name, entry->e_name_len))
     {
       if (cmp)
-	*cmp = comp;
+	*cmp = 1;
       return ENODATA;
     }
 
@@ -398,8 +395,7 @@ diskfs_list_xattr (struct node *np, char *buffer, int *len)
     }
   ext2_debug("ext2 xattr block found");
 
-  if (*len)
-    entry = EXT2_XATTR_ENTRY_FIRST (header);
+  entry = EXT2_XATTR_ENTRY_FIRST (header);
   while (!EXT2_XATTR_ENTRY_LAST (entry))
     {
       xattr_print_entry (entry);
@@ -425,14 +421,13 @@ error_t
 diskfs_get_xattr (struct node *np, char *name, char *value, int *len)
 {
 
-  block_t blkno;
-  void *block;
-  struct ext2_inode *ei;
-  ext2_xattr_header *header;
-  ext2_xattr_entry *entry;
-  int name_len;
   int size;
   int err;
+  void *block;
+  struct ext2_inode *ei;
+  block_t blkno;
+  ext2_xattr_header *header;
+  ext2_xattr_entry *entry;
 
   if (len)
     size = *len;
@@ -466,8 +461,6 @@ diskfs_get_xattr (struct node *np, char *name, char *value, int *len)
       ext2_warning ("Invalid extended attribute block.");
       return EIO;
     }
-
-  name_len = strlen (name);
 
   entry = EXT2_XATTR_ENTRY_FIRST (header);
 
@@ -652,10 +645,26 @@ diskfs_xattr_test (struct node *np)
 {
   int len = 32;
   char buf[32];
+  // char *buf_ptr;
 
+  /*
   diskfs_list_xattr (np, buf, &len);
-  ext2_debug("len: %d", len);
-  ext2_debug("%.*s", len, buf);
+
+  ext2_debug ("len: %d", len);
+  buf_ptr = buf;
+  while (len > 0){
+      ext2_debug ("%s", buf_ptr);
+      len -= strlen (buf_ptr) + 1;
+      buf_ptr += strlen (buf_ptr) + 1;
+  }
+  */
+
+  len = 32;
+  memset(buf, 0, sizeof(len));
+  diskfs_get_xattr (np, "user.key", buf, &len);
+  ext2_debug ("len: %d", len);
+  buf[len] = 0;
+  ext2_debug("value: %s", buf);
 
   return 0;
 }
