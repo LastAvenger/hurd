@@ -108,11 +108,7 @@ xattr_entry_list (ext2_xattr_entry * entry, char *buffer, int *len)
   if (xattr_prefixes[i].prefix == NULL)
     return EOPNOTSUPP;
 
-  ext2_debug("prefix: %s, prefix_size: %d", xattr_prefixes[i].prefix,
-		  xattr_prefixes[i].size);
-
   size = xattr_prefixes[i].size + entry->e_name_len + 1;
-  ext2_debug("attribute size: %d", size);
 
   if (buffer)
     {
@@ -122,7 +118,7 @@ xattr_entry_list (ext2_xattr_entry * entry, char *buffer, int *len)
 	  buffer += xattr_prefixes[i].size;
 	  memcpy (buffer, entry->e_name, entry->e_name_len);
 	  buffer += entry->e_name_len;
-      *buffer++ = 0;
+	  *buffer++ = 0;
 	}
       else
 	{
@@ -215,6 +211,8 @@ xattr_entry_create (ext2_xattr_header * header,
       return ERANGE;
     }
 
+  assert (!diskfs_readonly);
+
   start = EXT2_XATTR_ENTRY_OFFSET (header, position);
   end = EXT2_XATTR_ENTRY_OFFSET (header, last);
 
@@ -254,7 +252,9 @@ xattr_entry_remove (ext2_xattr_header * header,
   off_t end;
   ext2_xattr_entry *entry;
 
-  /* Remove attribute value */
+  assert (!diskfs_readonly);
+
+  /* Remove the value */
   size = EXT2_XATTR_ALIGN (position->e_value_size);
   start = EXT2_XATTR_ENTRY_OFFSET (header, last) + rest;
   end = position->e_value_offs;
@@ -271,7 +271,7 @@ xattr_entry_remove (ext2_xattr_header * header,
       entry = EXT2_XATTR_ENTRY_NEXT (entry);
     }
 
-  /* Remove attribute name */
+  /* Remove the name */
   size = EXT2_XATTR_ENTRY_SIZE (position->e_name_len);
   start = EXT2_XATTR_ENTRY_OFFSET (header, position);
   end = EXT2_XATTR_ENTRY_OFFSET (header, last) + rest;
@@ -306,9 +306,10 @@ xattr_entry_replace (ext2_xattr_header * header,
   if (new_size - old_size > rest)
     return ERANGE;
 
+  assert (!diskfs_readonly);
+
   if (new_size != old_size)
     {
-
       off_t start;
       off_t end;
       ext2_xattr_entry *entry;
@@ -316,6 +317,7 @@ xattr_entry_replace (ext2_xattr_header * header,
       start = EXT2_XATTR_ENTRY_OFFSET (header, last) + rest;
       end = position->e_value_offs;
 
+      /* Remove the old value */
       memmove ((char *) header + start + old_size, (char *) header + start,
 	       end - start);
 
@@ -328,14 +330,11 @@ xattr_entry_replace (ext2_xattr_header * header,
 	}
 
       position->e_value_offs = start - (new_size - old_size);
-      position->e_value_size = len;
-
-    }
-  else
-    {
-      position->e_value_size = len;
     }
 
+  position->e_value_size = len;
+
+  /* Write the new value */
   memcpy ((char *) header + position->e_value_offs, value, len);
   memset ((char *) header + position->e_value_offs + len, 0, new_size - len);
 
@@ -375,7 +374,6 @@ diskfs_list_xattr (struct node *np, char *buffer, int *len)
   ei = dino_ref (np->cache_id);
 
   blkno = ei->i_file_acl;
-  ext2_debug("blkno = %d", blkno);
 
   if (blkno == 0)
     {
@@ -491,7 +489,8 @@ diskfs_get_xattr (struct node *np, char *name, char *value, int *len)
  * returned.  If no matching entry is found, ENODATA is returned.
  * EOPNOTSUPP is returned in case extended attributes or the name
  * prefix are not supported.  If there is no space available in the
- * block, ERANGE is returned.
+ * block, ERANGE is returned.  If there is no any entry after removing
+ * the specified entry, free the xattr block.
  */
 error_t
 diskfs_set_xattr (struct node *np, char *name, char *value, int len,
@@ -501,8 +500,8 @@ diskfs_set_xattr (struct node *np, char *name, char *value, int len,
   int err;
   int found;
   int rest;
-  void *block;
   block_t blkno;
+  void *block;
   struct ext2_inode *ei;
   ext2_xattr_header *header;
   ext2_xattr_entry *entry;
@@ -521,17 +520,20 @@ diskfs_set_xattr (struct node *np, char *name, char *value, int len,
   ei = dino_ref (np->cache_id);
 
   blkno = ei->i_file_acl;
-  ext2_debug("blkno: %d", blkno);
 
   if (blkno == 0)
     {
       /* Allocate and initialize new block */
       block_t goal;
+
+      assert (!diskfs_readonly);
+
       goal = sblock->s_first_data_block + np->dn->info.i_block_group *
 	EXT2_BLOCKS_PER_GROUP (sblock);
       blkno = ext2_new_block (goal, 0, 0, 0);
       block = disk_cache_block_ref (blkno);
       memset (block, 0, block_size);
+
       header = EXT2_XATTR_HEADER (block);
       header->h_magic = EXT2_XATTR_BLOCK_MAGIC;
       header->h_blocks = 1;
@@ -552,7 +554,6 @@ diskfs_set_xattr (struct node *np, char *name, char *value, int len,
   location = NULL;
 
   rest = block_size;
-  ext2_debug("rest: %d", block_size);
 
   err = ENODATA;
   found = FALSE;
@@ -566,7 +567,7 @@ diskfs_set_xattr (struct node *np, char *name, char *value, int len,
 	  location = entry;
 	  found = TRUE;
 	}
-      else if (err == ENODATA)
+      else if (err == ENODATA && !found)
 	{
 	  location = entry;
 	  found = FALSE;
@@ -595,9 +596,8 @@ diskfs_set_xattr (struct node *np, char *name, char *value, int len,
       if (found)
 	return EEXIST;
       else
-	err =
-	  xattr_entry_create (header, entry, location, name, value, len,
-			      rest);
+	err = xattr_entry_create (header, entry, location, name, value, len,
+		rest);
     }
   else if (value && flags & XATTR_REPLACE)
     {
@@ -611,9 +611,8 @@ diskfs_set_xattr (struct node *np, char *name, char *value, int len,
       if (found)
 	err = xattr_entry_replace (header, entry, location, value, len, rest);
       else
-	err =
-	  xattr_entry_create (header, entry, location, name, value, len,
-			      rest);
+	err = xattr_entry_create (header, entry, location, name, value, len,
+		rest);
     }
   else
     {
@@ -625,13 +624,32 @@ diskfs_set_xattr (struct node *np, char *name, char *value, int len,
 	err = xattr_entry_remove (header, entry, location, rest);
     }
 
+
+  /* Check if the xattr block is empty */
+  int empty = 1;
+  entry = EXT2_XATTR_ENTRY_FIRST (header);
+  while (!EXT2_XATTR_ENTRY_LAST (entry))
+    {
+      empty = 0;
+      entry = EXT2_XATTR_ENTRY_NEXT (entry);
+    }
+
   if (err == 0)
     {
-      record_global_poke (block);
-      if (ei->i_file_acl == 0)
+      if (empty)
 	{
+	  ext2_free_blocks (blkno, 1);
 	  ei->i_file_acl = blkno;
 	  record_global_poke (ei);
+	}
+      else
+	{
+	  record_global_poke (block);
+	  if (ei->i_file_acl == 0)
+	    {
+	      ei->i_file_acl = blkno;
+	      record_global_poke (ei);
+	    }
 	}
     }
 
@@ -667,7 +685,7 @@ diskfs_xattr_test (struct node *np)
   ext2_debug("value: %s", buf);
   */
 
-  diskfs_set_xattr (np, "user.key3", "value3", sizeof ("value3") - 1, 0);
+  diskfs_set_xattr (np, "user.key3", "test", 4, 0);
 
   len = 32;
   memset(buf, 0, sizeof (len));
