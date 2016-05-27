@@ -49,7 +49,8 @@ struct _ext2_xattr_entry
 typedef struct _ext2_xattr_header ext2_xattr_header;
 typedef struct _ext2_xattr_entry ext2_xattr_entry;
 
-#define EXT2_XATTR_PAD 4
+#define EXT2_XATTR_PAD_BITS 2
+#define EXT2_XATTR_PAD (1 << EXT2_XATTR_PAD_BITS)
 #define EXT2_XATTR_ROUND (EXT2_XATTR_PAD - 1)
 
 /* Entry alignment in xattr block. */

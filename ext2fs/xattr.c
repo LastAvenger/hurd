@@ -54,7 +54,7 @@ xattr_prefixes[] =
  * suffix name (name) are given.  Returns the index in the array
  * indicating whether a corresponding prefix was found or not.
  */
-int
+static int
 xattr_name_prefix (char *full_name, int *index, char **name)
 {
   int i;
@@ -69,6 +69,85 @@ xattr_name_prefix (char *full_name, int *index, char **name)
 	}
     }
   return i;
+}
+
+#define NAME_HASH_SHIFT 5
+#define VALUE_HASH_SHIFT 16
+
+/* Given a xattr block header and a entry, compute the hash of this
+ * entry.
+ */
+static void
+xattr_entry_hash (ext2_xattr_header * header,
+		  ext2_xattr_entry * entry)
+{
+
+  int hash = 0;
+  char *name = entry->e_name;
+  int n;
+
+  for (n = 0; n < entry->e_name_len; n++)
+    {
+      hash = (hash << NAME_HASH_SHIFT)
+	  ^ (hash >> (8 * sizeof (hash) - NAME_HASH_SHIFT))
+	  ^ *name++;
+    }
+
+  if (entry->e_value_block == 0 && entry->e_value_size != 0)
+    {
+      int *value = (int *) ((char *) header + entry->e_value_offs);
+      for (n = (entry->e_value_size + EXT2_XATTR_ROUND) >>
+	      EXT2_XATTR_PAD_BITS; n; n--)
+	{
+	  ext2_debug("n = %d", n);
+	  hash = (hash << VALUE_HASH_SHIFT)
+	      ^ (hash >> (8 * sizeof (hash) - VALUE_HASH_SHIFT))
+	      ^ *value++;
+	}
+    }
+
+  entry->e_hash = hash;
+
+  ext2_debug("%x", hash);
+
+}
+
+#define BLOCK_HASH_SHIFT 16
+
+/* Given a xattr block header and a entry, re-compute the
+ * hash of the entry after it has changed, and computer the hash
+ * of the header.
+ */
+static void
+xattr_entry_rehash (ext2_xattr_header * header,
+		   ext2_xattr_entry * entry)
+{
+
+  int hash = 0;
+  ext2_xattr_entry *position;
+
+  xattr_entry_hash (header, entry);
+
+  position = EXT2_XATTR_ENTRY_FIRST (header);
+  while (!EXT2_XATTR_ENTRY_LAST (position))
+    {
+      if (position->e_hash == 0)
+	{
+	  /* Block is not shared if an entry's hash value == 0 */
+	  hash = 0;
+	  break;
+	}
+
+      hash = (hash << BLOCK_HASH_SHIFT)
+	  ^ (hash >> (8 * sizeof (hash) - BLOCK_HASH_SHIFT))
+	  ^ position->e_hash;
+
+      position = EXT2_XATTR_ENTRY_NEXT (position);
+    }
+
+  header->h_hash = hash;
+  ext2_debug("hash: %x", hash);
+
 }
 
 void xattr_print_entry (ext2_xattr_entry *entry)
@@ -198,7 +277,6 @@ xattr_entry_create (ext2_xattr_header * header,
   int index;
 
   xattr_name_prefix (name, &index, &name);
-  // (?) check ret val?
   ext2_debug("name: %s, value: %s, len %d, rest: %d",
 	  name, value, len, rest);
 
@@ -216,17 +294,15 @@ xattr_entry_create (ext2_xattr_header * header,
   start = EXT2_XATTR_ENTRY_OFFSET (header, position);
   end = EXT2_XATTR_ENTRY_OFFSET (header, last);
 
+  /* Leave room for new entry */
   memmove ((char *) position + entry_size, position, end - start);
 
   position->e_name_len = name_len;
   position->e_name_index = index;
   position->e_value_offs = end + rest - value_size;
   position->e_value_block = 0;
-  // (?) why value_block always zero?
   position->e_value_size = len;
-  position->e_hash = 0;
   strncpy (position->e_name, name, name_len);
-  xattr_print_entry(position);
 
   memcpy ((char *) header + position->e_value_offs, value, len);
   memset ((char *) header + position->e_value_offs + len, 0,
@@ -263,6 +339,7 @@ xattr_entry_remove (ext2_xattr_header * header,
 	   end - start);
   memset ((char *) header + start, 0, end - start);
 
+  /* Adjust all value offsets */
   entry = EXT2_XATTR_ENTRY_FIRST (header);
   while (!EXT2_XATTR_ENTRY_LAST (entry))
     {
@@ -274,10 +351,11 @@ xattr_entry_remove (ext2_xattr_header * header,
   /* Remove the name */
   size = EXT2_XATTR_ENTRY_SIZE (position->e_name_len);
   start = EXT2_XATTR_ENTRY_OFFSET (header, position);
-  end = EXT2_XATTR_ENTRY_OFFSET (header, last) + rest;
+  end = EXT2_XATTR_ENTRY_OFFSET (header, last);
 
   memmove ((char *) header + start , (char *) header + start + size,
 	   end - (start + size));
+  memset (header + end - size, 0, size);
 
   return 0;
 
@@ -321,6 +399,7 @@ xattr_entry_replace (ext2_xattr_header * header,
       memmove ((char *) header + start + old_size, (char *) header + start,
 	       end - start);
 
+      /* Adjust all value offsets */
       entry = EXT2_XATTR_ENTRY_FIRST (header);
       while (!EXT2_XATTR_ENTRY_LAST (entry))
 	{
@@ -644,6 +723,8 @@ diskfs_set_xattr (struct node *np, char *name, char *value, int len,
 	}
       else
 	{
+	  xattr_entry_rehash (header, location);
+
 	  record_global_poke (block);
 	  if (ei->i_file_acl == 0)
 	    {
