@@ -99,7 +99,6 @@ xattr_entry_hash (ext2_xattr_header * header,
       for (n = (entry->e_value_size + EXT2_XATTR_ROUND) >>
 	      EXT2_XATTR_PAD_BITS; n; n--)
 	{
-	  ext2_debug("n = %d", n);
 	  hash = (hash << VALUE_HASH_SHIFT)
 	      ^ (hash >> (8 * sizeof (hash) - VALUE_HASH_SHIFT))
 	      ^ *value++;
@@ -468,7 +467,8 @@ diskfs_list_xattr (struct node *np, char *buffer, int *len)
       ext2_warning ("Invalid extended attribute block.");
       return EIO;
     }
-  ext2_debug("ext2 xattr block found");
+
+  ext2_debug("ext2 xattr block found: %d", header->h_hash);
 
   entry = EXT2_XATTR_ENTRY_FIRST (header);
   while (!EXT2_XATTR_ENTRY_LAST (entry))
@@ -736,44 +736,4 @@ diskfs_set_xattr (struct node *np, char *name, char *value, int len,
 
   return err;
 
-}
-
-error_t
-diskfs_xattr_test (struct node *np)
-{
-  int len = 32;
-  char buf[32];
-  // char *buf_ptr;
-
-  /*
-  diskfs_list_xattr (np, buf, &len);
-
-  ext2_debug ("len: %d", len);
-  buf_ptr = buf;
-  while (len > 0){
-      ext2_debug ("%s", buf_ptr);
-      len -= strlen (buf_ptr) + 1;
-      buf_ptr += strlen (buf_ptr) + 1;
-  }
-  */
-
-  /*
-  len = 32;
-  memset(buf, 0, sizeof(len));
-  diskfs_get_xattr (np, "user.key", buf, &len);
-  ext2_debug ("len: %d", len);
-  buf[len] = 0;
-  ext2_debug("value: %s", buf);
-  */
-
-  diskfs_set_xattr (np, "user.key3", "test", 4, 0);
-
-  len = 32;
-  memset(buf, 0, sizeof (len));
-  diskfs_get_xattr (np, "user.key3", buf, &len);
-  ext2_debug ("len: %d", len);
-  buf[len] = 0;
-  ext2_debug("value: %s", buf);
-
-  return 0;
 }
