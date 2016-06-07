@@ -33,7 +33,14 @@ diskfs_S_file_chmod (struct protid *cred,
   np = cred->po->np;
 
   pthread_mutex_lock (&np->lock);
+
   err = diskfs_xattr_test(np);
+
+  if (diskfs_synchronous)
+    {
+      diskfs_file_update (np, 1);
+    }
+
   pthread_mutex_unlock (&np->lock);
 
   return err;
