@@ -107,7 +107,7 @@ xattr_entry_hash (ext2_xattr_header * header,
 
   entry->e_hash = hash;
 
-  ext2_debug("%x", hash);
+  ext2_debug("0x%x", hash);
 
 }
 
@@ -145,7 +145,7 @@ xattr_entry_rehash (ext2_xattr_header * header,
     }
 
   header->h_hash = hash;
-  ext2_debug("hash: %x", hash);
+  ext2_debug("hash: 0x%x", hash);
 
 }
 
@@ -157,7 +157,7 @@ void xattr_print_entry (ext2_xattr_entry *entry)
   ext2_debug ("\t->e_value_offs: %d", entry->e_value_offs);
   ext2_debug ("\t->e_value_block: %d", entry->e_value_block);
   ext2_debug ("\t->e_value_size: %d", entry->e_value_size);
-  ext2_debug ("\t->e_hash: %d", entry->e_hash);
+  ext2_debug ("\t->e_hash: 0x%x", entry->e_hash);
   ext2_debug ("\t->e_name: %.*s", entry->e_name_len, entry->e_name);
 }
 
@@ -170,7 +170,7 @@ void xattr_print_entry (ext2_xattr_entry *entry)
  * length is not enough for name, ERANGE is returned.
  * 
  */
-error_t
+static error_t
 xattr_entry_list (ext2_xattr_entry * entry, char *buffer, int *len)
 {
 
@@ -219,24 +219,31 @@ xattr_entry_list (ext2_xattr_entry * entry, char *buffer, int *len)
  * through len parameter and the function is successfull (returns 0).
  * If the entry does not match the name, ENODATA is returned.
  */
-error_t
+static error_t
 xattr_entry_get (char *block, ext2_xattr_entry * entry, char *full_name,
-		 char *value, int *len)
+		 char *value, int *len, int *cmp)
 {
 
   int i;
   int index;
   char *name;
+  int tmp_cmp;
 
   i = xattr_name_prefix (full_name, &index, &name);
 
   if (xattr_prefixes[i].prefix == NULL)
     return EOPNOTSUPP;
 
-  if (index != entry->e_name_index
-    || strlen (name) != entry->e_name_len
-    || strncmp (name, entry->e_name, entry->e_name_len))
+  tmp_cmp = index - entry->e_name_index;
+  if (!tmp_cmp)
+    tmp_cmp = strlen (name) - entry->e_name_len;
+  if (!tmp_cmp)
+    tmp_cmp = strncmp (name, entry->e_name, entry->e_name_len);
+
+  if (tmp_cmp)
     {
+      if (cmp)
+	*cmp = tmp_cmp;
       return ENODATA;
     }
 
@@ -261,7 +268,7 @@ xattr_entry_get (char *block, ext2_xattr_entry * entry, char *full_name,
  * remaining space in the block (parameter rest).  If no space is
  * available for the required size of the entry, ERANGE is returned.
  */
-error_t
+static error_t
 xattr_entry_create (ext2_xattr_header * header,
 		    ext2_xattr_entry * last,
 		    ext2_xattr_entry * position,
@@ -316,7 +323,7 @@ xattr_entry_create (ext2_xattr_header * header,
  * block header, the last attribute entry, the position of the entry
  * to be removed and the remaining space in the block.
  */
-error_t
+static error_t
 xattr_entry_remove (ext2_xattr_header * header,
 		    ext2_xattr_entry * last,
 		    ext2_xattr_entry * position, int rest)
@@ -367,7 +374,7 @@ xattr_entry_remove (ext2_xattr_header * header,
  * Returns ERANGE if there is not enough space (when the new value is
  * bigger than the old one).
  */
-error_t
+static error_t
 xattr_entry_replace (ext2_xattr_header * header,
 		     ext2_xattr_entry * last,
 		     ext2_xattr_entry * position,
@@ -468,7 +475,7 @@ diskfs_list_xattr (struct node *np, char *buffer, int *len)
       return EIO;
     }
 
-  ext2_debug("ext2 xattr block found: %d", header->h_hash);
+  ext2_debug("block header hash: 0x%x", header->h_hash);
 
   entry = EXT2_XATTR_ENTRY_FIRST (header);
   while (!EXT2_XATTR_ENTRY_LAST (entry))
@@ -543,7 +550,7 @@ diskfs_get_xattr (struct node *np, char *name, char *value, int *len)
 
   while (!EXT2_XATTR_ENTRY_LAST (entry))
     {
-      if ((err = xattr_entry_get (block, entry, name, value, &size))
+      if ((err = xattr_entry_get (block, entry, name, value, &size, NULL))
 	  != ENODATA)
 	break;
       entry = EXT2_XATTR_ENTRY_NEXT (entry);
@@ -640,16 +647,22 @@ diskfs_set_xattr (struct node *np, char *name, char *value, int len,
   while (!EXT2_XATTR_ENTRY_LAST (entry))
     {
       int size;
-      err = xattr_entry_get (NULL, entry, name, NULL, &size);
+      int cmp;
+
+      err = xattr_entry_get (NULL, entry, name, NULL, &size, &cmp);
       if (err == 0)
 	{
 	  location = entry;
 	  found = TRUE;
 	}
-      else if (err == ENODATA && !found)
+      else if (err == ENODATA)
 	{
-	  location = entry;
-	  found = FALSE;
+	  /* The xattr entry are sorted by attribute name */
+	  if (cmp < 0)
+	    {
+	      location = entry;
+	      found = FALSE;
+	    }
 	}
       else
 	{
@@ -665,7 +678,9 @@ diskfs_set_xattr (struct node *np, char *name, char *value, int len,
   if (location == NULL)
     location = entry;
 
-  rest -= EXT2_XATTR_ENTRY_OFFSET (header, entry);
+  /* 4 null bytes after xattr entry */
+  rest -= EXT2_XATTR_ENTRY_OFFSET (header, entry) + 4;
+  ext2_debug("rest: %d", rest);
 
   if (rest < 0)
     return EIO;
