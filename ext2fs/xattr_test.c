@@ -34,15 +34,14 @@ extern int ext2_debug_flag;
  *  sudo umount ./tmp
  *  rm -rf ./tmp
  *
- *  ext2fs: (debug) dino_ref: (12) = 0x101d5580
- *  ext2fs: (debug) diskfs_list_xattr: ext2 xattr block found: 1137397806
+ *  ext2fs: (debug) diskfs_list_xattr: block header hash: 0x43cb502e
  *  ext2fs: (debug) xattr_print_entry: entry:
  *  ext2fs: (debug) xattr_print_entry:      ->e_name_len: 7
  *  ext2fs: (debug) xattr_print_entry:      ->e_name_index: 1
  *  ext2fs: (debug) xattr_print_entry:      ->e_value_offs: 4088
  *  ext2fs: (debug) xattr_print_entry:      ->e_value_block: 0
  *  ext2fs: (debug) xattr_print_entry:      ->e_value_size: 7
- *  ext2fs: (debug) xattr_print_entry:      ->e_hash: 1828335412
+ *  ext2fs: (debug) xattr_print_entry:      ->e_hash: 0x6cfa2f34
  *  ext2fs: (debug) xattr_print_entry:      ->e_name: key_123
  *  ext2fs: (debug) xattr_print_entry: entry:
  *  ext2fs: (debug) xattr_print_entry:      ->e_name_len: 7
@@ -50,7 +49,7 @@ extern int ext2_debug_flag;
  *  ext2fs: (debug) xattr_print_entry:      ->e_value_offs: 4080
  *  ext2fs: (debug) xattr_print_entry:      ->e_value_block: 0
  *  ext2fs: (debug) xattr_print_entry:      ->e_value_size: 7
- *  ext2fs: (debug) xattr_print_entry:      ->e_hash: 1828666580
+ *  ext2fs: (debug) xattr_print_entry:      ->e_hash: 0x6cff3cd4
  *  ext2fs: (debug) xattr_print_entry:      ->e_name: key_456
  *
  */
@@ -115,13 +114,13 @@ get_xattr_test (struct node *np)
   block = disk_cache_block_ref (blkno);
 
   header = EXT2_XATTR_HEADER (block);
-  assert (header->h_hash == 1137397806);
+  assert (header->h_hash == 0x43cb502e);
 
   entry = EXT2_XATTR_ENTRY_FIRST (header);
-  assert (entry->e_hash== 1828335412);
+  assert (entry->e_hash== 0x6cfa2f34);
 
   entry = EXT2_XATTR_ENTRY_NEXT (entry);
-  assert (entry->e_hash== 1828666580);
+  assert (entry->e_hash== 0x6cff3cd4);
 
   entry = EXT2_XATTR_ENTRY_NEXT (entry);
   assert (EXT2_XATTR_ENTRY_LAST (entry));
@@ -142,25 +141,18 @@ get_xattr_test (struct node *np)
 static void
 set_xattr_test (struct node *np)
 {
-  char buf[256];
-  int len = sizeof (buf);
-
   /* create */
   diskfs_set_xattr (np, "user.key_123", "val_123",
     sizeof ("val_123") - 1, XATTR_CREATE);
   diskfs_set_xattr (np, "user.key_456", "val_456",
     sizeof ("val_456") - 1, XATTR_CREATE);
-
-  list_xattr_test(np);
-  get_xattr_test(np);
 }
 
 error_t
 diskfs_xattr_test (struct node *np)
 {
+  set_xattr_test (np);
   list_xattr_test(np);
   get_xattr_test (np);
-
-  // set_xattr_test (np);
   return 0;
 }
