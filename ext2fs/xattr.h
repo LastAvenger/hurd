@@ -21,28 +21,30 @@
 #ifndef EXT2_XATTR_H
 #define EXT2_XATTR_H
 
+#include "ext2fs.h"
+
 /* Identifies whether a block is a proper xattr block. */
 #define EXT2_XATTR_BLOCK_MAGIC 0xEA020000
 
 /* xattr block header. */
 struct _ext2_xattr_header
 {
-  int h_magic;	/* h_magic number for identification */
-  int h_refcount;	/* reference count */
-  int h_blocks;	/* number of disk blocks used */
-  int h_hash;	/* hash value of all attributes */
-  int h_reserved[4];	/* zero right now */
+  __u32 h_magic;	/* h_magic number for identification */
+  __u32 h_refcount;	/* reference count */
+  __u32 h_blocks;	/* number of disk blocks used */
+  __u32 h_hash;	/* hash value of all attributes */
+  __u32 h_reserved[4];	/* zero right now */
 };
 
 /* xattr entry in xattr block. */
 struct _ext2_xattr_entry
 {
-  char e_name_len;	/* length of name */
-  char e_name_index;	/* attribute name index */
-  short e_value_offs;	/* offset in disk block of value */
-  int e_value_block;	/* disk block attribute is stored on (n/i) */
-  int e_value_size;	/* size of attribute value */
-  int e_hash;		/* hash value of name and value */
+  __u8 e_name_len;	/* length of name */
+  __u8 e_name_index;	/* attribute name index */
+  __u16 e_value_offs;	/* offset in disk block of value */
+  __u32 e_value_block;	/* disk block attribute is stored on (n/i) */
+  __u32 e_value_size;	/* size of attribute value */
+  __u32 e_hash;		/* hash value of name and value */
   char e_name[0];	/* attribute name */
 };
 

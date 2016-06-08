@@ -82,20 +82,20 @@ xattr_entry_hash (ext2_xattr_header * header,
 		  ext2_xattr_entry * entry)
 {
 
-  int hash = 0;
+  __u32 hash = 0;
   char *name = entry->e_name;
   int n;
 
   for (n = 0; n < entry->e_name_len; n++)
     {
       hash = (hash << NAME_HASH_SHIFT)
-	  ^ (hash >> (8 * sizeof (hash) - NAME_HASH_SHIFT))
-	  ^ *name++;
+        ^ (hash >> (8 * sizeof (hash) - NAME_HASH_SHIFT))
+	    ^ *name++;
     }
 
   if (entry->e_value_block == 0 && entry->e_value_size != 0)
     {
-      int *value = (int *) ((char *) header + entry->e_value_offs);
+      __u32 *value = (__u32 *) ((char *) header + entry->e_value_offs);
       for (n = (entry->e_value_size + EXT2_XATTR_ROUND) >>
 	      EXT2_XATTR_PAD_BITS; n; n--)
 	{
@@ -111,6 +111,9 @@ xattr_entry_hash (ext2_xattr_header * header,
 
 }
 
+#undef NAME_HASH_SHIFT
+#undef VALUE_HASH_SHIFT
+
 #define BLOCK_HASH_SHIFT 16
 
 /* Given a xattr block header and a entry, re-compute the
@@ -122,7 +125,7 @@ xattr_entry_rehash (ext2_xattr_header * header,
 		   ext2_xattr_entry * entry)
 {
 
-  int hash = 0;
+  __u32 hash = 0;
   ext2_xattr_entry *position;
 
   xattr_entry_hash (header, entry);
@@ -148,6 +151,8 @@ xattr_entry_rehash (ext2_xattr_header * header,
   ext2_debug("hash: 0x%x", hash);
 
 }
+
+#undef BLOCK_HASH_SHIFT
 
 void xattr_print_entry (ext2_xattr_entry *entry)
 {
