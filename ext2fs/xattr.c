@@ -222,7 +222,10 @@ xattr_entry_list (ext2_xattr_entry * entry, char *buffer, int *len)
  * case there is not enough space in the buffer provided, ERANGE is
  * returned.  If the value buffer was NULL, the length is returned
  * through len parameter and the function is successfull (returns 0).
- * If the entry does not match the name, ENODATA is returned.
+ * If the entry does not match the name, ENODATA is returned, and
+ * parameter cmp is set to the comparison value (less than 0 if a
+ * entry with name full_name should be before the current entry,
+ * more than 0 otherwise.
  */
 static error_t
 xattr_entry_get (char *block, ext2_xattr_entry * entry, char *full_name,
@@ -755,5 +758,67 @@ diskfs_set_xattr (struct node *np, char *name, char *value, int len,
     }
 
   return err;
+
+}
+
+/*
+ * Given a node, free extended attributes block associated with
+ * this node.
+ * TODO: call me before the node is freed
+ */
+error_t
+diskfs_free_xattr_block(struct node *np)
+{
+  block_t blkno;
+  void *block;
+  struct ext2_inode *ei;
+  ext2_xattr_header *header;
+
+  /* FIXME: macro EXT2_HAS_COMPAT_FEATURE not found */
+  /*
+  if (!EXT2_HAS_COMPAT_FEATURE (sblock, EXT2_FEATURE_COMPAT_EXT_ATTR))
+    {
+      // FIXME: remove warning
+      ext2_warning ("Filesystem has no support for extended attributes.");
+      return EOPNOTSUPP;
+    }
+   */
+
+  ei = dino_ref (np->cache_id);
+
+  blkno = ei->i_file_acl;
+
+  if (blkno == 0)
+    {
+      return 0;
+    }
+
+  assert (!diskfs_readonly);
+
+  block = disk_cache_block_ref (blkno);
+  header = EXT2_XATTR_HEADER (block);
+
+  if (header->h_magic != EXT2_XATTR_BLOCK_MAGIC || header->h_blocks != 1)
+    {
+      ext2_warning ("Invalid extended attribute block.");
+      return EIO;
+    }
+
+  if (header->h_refcount == 1)
+    {
+       ext2_debug("free block %d", blkno);
+       ext2_free_blocks(blkno, 1);
+    }
+  else
+    {
+       ext2_debug("h_refcount: %d", header->h_refcount);
+       header->h_refcount--;
+       record_global_poke (block);
+    }
+
+  ei->i_file_acl = 0;
+  record_global_poke (ei);
+
+  return 0;
 
 }
