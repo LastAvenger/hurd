@@ -26,8 +26,6 @@ int ext2_debug_flag = 1;
 #include "xattr.h"
 #include <stdlib.h>
 #include <string.h>
-
-/* FIXME: used for XATTR_CREATE and XATTR_REPLACE. */
 #include <sys/xattr.h>
 
 struct _xattr_prefix
@@ -454,15 +452,11 @@ diskfs_list_xattr (struct node *np, char *buffer, int *len)
 
   int size = *len;
 
-  /* FIXME: macro EXT2_HAS_COMPAT_FEATURE not found */
-  /*
   if (!EXT2_HAS_COMPAT_FEATURE (sblock, EXT2_FEATURE_COMPAT_EXT_ATTR))
     {
-      // FIXME: remove warning
       ext2_warning ("Filesystem has no support for extended attributes.");
       return EOPNOTSUPP;
     }
-   */
 
   ei = dino_ref (np->cache_id);
 
@@ -524,15 +518,11 @@ diskfs_get_xattr (struct node *np, char *name, char *value, int *len)
   else
     size = 0;
 
-  /* FIXME: macro EXT2_HAS_COMPAT_FEATURE not found */
-  /*
   if (!EXT2_HAS_COMPAT_FEATURE (sblock, EXT2_FEATURE_COMPAT_EXT_ATTR))
     {
-      // FIXME: remove warning
       ext2_warning ("Filesystem has no support for extended attributes.");
       return EOPNOTSUPP;
     }
-    */
 
   ei = dino_ref (np->cache_id);
 
@@ -601,15 +591,11 @@ diskfs_set_xattr (struct node *np, char *name, char *value, int len,
   ext2_xattr_entry *entry;
   ext2_xattr_entry *location;
 
-  /* FIXME: macro EXT2_HAS_COMPAT_FEATURE not found */
-  /*
   if (!EXT2_HAS_COMPAT_FEATURE (sblock, EXT2_FEATURE_COMPAT_EXT_ATTR))
     {
-      FIXME: remove warning
       ext2_warning ("Filesystem has no support for extended attributes.");
       return EOPNOTSUPP;
     }
-    */
 
   ei = dino_ref (np->cache_id);
 
@@ -774,15 +760,11 @@ diskfs_free_xattr_block(struct node *np)
   struct ext2_inode *ei;
   ext2_xattr_header *header;
 
-  /* FIXME: macro EXT2_HAS_COMPAT_FEATURE not found */
-  /*
   if (!EXT2_HAS_COMPAT_FEATURE (sblock, EXT2_FEATURE_COMPAT_EXT_ATTR))
     {
-      // FIXME: remove warning
       ext2_warning ("Filesystem has no support for extended attributes.");
       return EOPNOTSUPP;
     }
-   */
 
   ei = dino_ref (np->cache_id);
 
