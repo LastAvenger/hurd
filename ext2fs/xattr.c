@@ -451,13 +451,16 @@ diskfs_list_xattr (struct node *np, char *buffer, int *len)
   ext2_xattr_header *header;
   ext2_xattr_entry *entry;
 
-  int size = *len;
-
   if (!EXT2_HAS_COMPAT_FEATURE (sblock, EXT2_FEATURE_COMPAT_EXT_ATTR))
     {
       ext2_warning ("Filesystem has no support for extended attributes.");
       return EOPNOTSUPP;
     }
+
+  if (!len)
+    return EINVAL;
+
+  int size = *len;
 
   ei = dino_ref (np->cache_id);
 
@@ -490,7 +493,9 @@ diskfs_list_xattr (struct node *np, char *buffer, int *len)
     }
 
   *len = *len - size;
+
   return 0;
+
 }
 
 
@@ -498,9 +503,10 @@ diskfs_list_xattr (struct node *np, char *buffer, int *len)
  * Given a node and an attribute name, returns the value and its
  * length in a buffer.  May return EOPNOTSUPP if underlying filesystem
  * does not support extended attributes or the given name prefix.  If
- * there is no sufficient space in value buffer, returns ERANGE.
- * Returns EIO if xattr block is invalid and ENODATA if there is no
- * such block or no entry in the block matching the name.
+ * there is no sufficient space in value buffer or attribute name is
+ * too long, returns ERANGE.  Returns EIO if xattr block is invalid
+ * and ENODATA if there is no such block or no entry in the block
+ * matching the name.
  */
 error_t
 diskfs_get_xattr (struct node *np, char *name, char *value, int *len)
@@ -514,16 +520,22 @@ diskfs_get_xattr (struct node *np, char *name, char *value, int *len)
   ext2_xattr_header *header;
   ext2_xattr_entry *entry;
 
-  if (len)
-    size = *len;
-  else
-    size = 0;
-
   if (!EXT2_HAS_COMPAT_FEATURE (sblock, EXT2_FEATURE_COMPAT_EXT_ATTR))
     {
       ext2_warning ("Filesystem has no support for extended attributes.");
       return EOPNOTSUPP;
     }
+
+  if (!name)
+    return EINVAL;
+
+  if (strlen(name) > 255)
+    return ERANGE;
+
+  if (len)
+    size = *len;
+  else
+    size = 0;
 
   ei = dino_ref (np->cache_id);
 
@@ -564,7 +576,8 @@ diskfs_get_xattr (struct node *np, char *name, char *value, int *len)
 
 /*
  * Set the value of an attribute giving the node, the attribute name,
- * value, the value length and flags.  If flags is XATTR_CREATE, the
+ * value, the value length and flags. If name or value is too long,
+ * ERANGE is returned.  If flags is XATTR_CREATE, the
  * attribute is created if no existing matching entry is found.
  * Otherwise, EEXIST is returned.  If flags is XATTR_REPLACE, the
  * attribute value is replaced if an entry is found and ENODATA is
@@ -597,6 +610,12 @@ diskfs_set_xattr (struct node *np, char *name, char *value, int len,
       ext2_warning ("Filesystem has no support for extended attributes.");
       return EOPNOTSUPP;
     }
+
+  if (!name)
+    return EINVAL;
+
+  if (strlen(name) > 255 || len > block_size)
+    return ERANGE;
 
   ei = dino_ref (np->cache_id);
 
@@ -715,18 +734,14 @@ diskfs_set_xattr (struct node *np, char *name, char *value, int len,
 
 
   /* Check if the xattr block is empty */
-  int empty = 1;
   entry = EXT2_XATTR_ENTRY_FIRST (header);
-  while (!EXT2_XATTR_ENTRY_LAST (entry))
-    {
-      empty = 0;
-      entry = EXT2_XATTR_ENTRY_NEXT (entry);
-    }
+  int empty = EXT2_XATTR_ENTRY_LAST (entry);
 
   if (err == 0)
     {
       if (empty)
 	{
+	  ext2_debug("block %d will be freed", blkno);
 	  ext2_free_blocks (blkno, 1);
 	  ei->i_file_acl = blkno;
 	  record_global_poke (ei);
