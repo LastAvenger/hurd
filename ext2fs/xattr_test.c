@@ -22,6 +22,104 @@ extern int ext2_debug_flag;
 #include "xattr.h"
 #include <sys/xattr.h>
 
+static void
+list_xattr_test (struct node *np, int exp_len, char *exp_buf,
+		error_t exp_err)
+{
+
+  char buf[256];
+  int len = sizeof (buf);
+
+  assert (diskfs_list_xattr (np, buf, &len) == exp_err);
+
+  assert (len == exp_len);
+  assert (memcmp(buf, exp_buf, len) == 0);
+
+  ext2_debug ("[PASS]");
+
+}
+
+static void
+get_xattr_test (struct node *np, char *exp_key, char *exp_val,
+		int exp_len, error_t exp_err)
+{
+  char buf[256];
+  int len = sizeof (buf);
+
+  memset (buf, 0, sizeof(len));
+  assert (diskfs_get_xattr (np, exp_key, buf, &len) == exp_err);
+
+  assert (len == exp_len);
+
+  buf[len] = 0;
+  assert (strcmp (buf, exp_val) == 0);
+
+  ext2_debug ("[PASS]");
+
+}
+
+static void
+set_xattr_test (struct node *np, char *exp_key,
+		char *exp_val, int exp_len,
+		int exp_flag, error_t exp_err)
+{
+  assert (diskfs_set_xattr (np, exp_key, exp_val,
+    exp_len, exp_flag) == exp_err);
+
+  ext2_debug ("[PASS]");
+
+}
+
+static void
+hash_xattr_test (struct node *np, unsigned int hash_arr[], int len)
+{
+
+  int i;
+  void *block;
+  block_t blkno;
+  struct ext2_inode *ei;
+  ext2_xattr_header *header;
+  ext2_xattr_entry *entry;
+
+  ei = dino_ref (np->cache_id);
+  blkno = ei->i_file_acl;
+
+  block = disk_cache_block_ref (blkno);
+
+  header = EXT2_XATTR_HEADER (block);
+  assert (header->h_hash == hash_arr[0]);
+
+  entry = EXT2_XATTR_ENTRY_FIRST (header);
+
+  for (i = 1; i < len; i++)
+    {
+      assert (entry->e_hash== hash_arr[i]);
+      entry = EXT2_XATTR_ENTRY_NEXT (entry);
+    }
+
+  assert (EXT2_XATTR_ENTRY_LAST (entry));
+
+  dino_deref (ei);
+  disk_cache_block_deref (block);
+  ext2_debug ("[PASS]");
+
+}
+
+error_t
+diskfs_xattr_test (struct node *np)
+{
+
+  // set_xattr_test (np);
+  list_xattr_test (np, 26, "user.key_123\0user.key_456\0", 0);
+  get_xattr_test (np, "user.key_123", "val_123", sizeof ("val_123") - 1, 0);
+  get_xattr_test (np, "user.key_456", "val_456", sizeof ("val_456") - 1, 0);
+
+  unsigned int hash_arr[] = {0x43cb502e, 0x6cfa2f34, 0x6cff3cd4};
+  hash_xattr_test (np, hash_arr, 3);
+  return 0;
+
+}
+
 /* Image for testing:
  *
  *  dd if=/dev/zero of=$(IMG) bs=4M count=10
@@ -34,6 +132,7 @@ extern int ext2_debug_flag;
  *  sudo umount ./tmp
  *  rm -rf ./tmp
  *
+ * Some test cases:
  *  ext2fs: (debug) diskfs_list_xattr: block header hash: 0x43cb502e
  *  ext2fs: (debug) xattr_print_entry: entry:
  *  ext2fs: (debug) xattr_print_entry:      ->e_name_len: 7
@@ -53,78 +152,6 @@ extern int ext2_debug_flag;
  *  ext2fs: (debug) xattr_print_entry:      ->e_name: key_456
  *
  */
-static void
-list_xattr_test (struct node *np)
-{
-  char buf[256];
-  int len = sizeof (buf);
-  char *buf_ptr;
-
-  diskfs_list_xattr (np, buf, &len);
-
-  ext2_debug ("%d", len);
-
-  assert (len == 26);
-  assert (memcmp(buf, "user.key_123\0user.key_456\0", len) == 0);
-
-  buf_ptr = buf;
-  while (len > 0){
-      ext2_debug ("%s", buf_ptr);
-      len -= strlen (buf_ptr) + 1;
-      buf_ptr += strlen (buf_ptr) + 1;
-  }
-
-}
-
-static void
-get_xattr_test (struct node *np)
-{
-  char buf[256];
-  int len = sizeof (buf);
-
-  memset(buf, 0, sizeof(len));
-  diskfs_get_xattr (np, "user.key_123", buf, &len);
-
-  ext2_debug ("len: %d", len);
-  assert (len == 7);
-
-  buf[len] = 0;
-  ext2_debug("value: %s", buf);
-  assert (strcmp(buf, "val_123") == 0);
-
-  memset(buf, 0, sizeof(len));
-  diskfs_get_xattr (np, "user.key_456", buf, &len);
-
-  ext2_debug ("len: %d", len);
-  assert (len == 7);
-
-  buf[len] = 0;
-  ext2_debug("value: %s", buf);
-  assert (strcmp(buf, "val_456") == 0);
-
-  void *block;
-  struct ext2_inode *ei;
-  block_t blkno;
-  ext2_xattr_header *header;
-  ext2_xattr_entry *entry;
-
-  ei = dino_ref (np->cache_id);
-  blkno = ei->i_file_acl;
-
-  block = disk_cache_block_ref (blkno);
-
-  header = EXT2_XATTR_HEADER (block);
-  assert (header->h_hash == 0x43cb502e);
-
-  entry = EXT2_XATTR_ENTRY_FIRST (header);
-  assert (entry->e_hash== 0x6cfa2f34);
-
-  entry = EXT2_XATTR_ENTRY_NEXT (entry);
-  assert (entry->e_hash== 0x6cff3cd4);
-
-  entry = EXT2_XATTR_ENTRY_NEXT (entry);
-  assert (EXT2_XATTR_ENTRY_LAST (entry));
-}
 
 /* Image for testing:
  *
@@ -138,21 +165,3 @@ get_xattr_test (struct node *np)
  *
  */
 
-static void
-set_xattr_test (struct node *np)
-{
-  /* create */
-  diskfs_set_xattr (np, "user.key_123", "val_123",
-    sizeof ("val_123") - 1, XATTR_CREATE);
-  diskfs_set_xattr (np, "user.key_456", "val_456",
-    sizeof ("val_456") - 1, XATTR_CREATE);
-}
-
-error_t
-diskfs_xattr_test (struct node *np)
-{
-  set_xattr_test (np);
-  list_xattr_test(np);
-  get_xattr_test (np);
-  return 0;
-}
