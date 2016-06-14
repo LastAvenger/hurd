@@ -57,6 +57,7 @@ static int
 xattr_name_prefix (char *full_name, int *index, char **name)
 {
   int i;
+
   for (i = 0; xattr_prefixes[i].prefix != NULL; i++)
     {
       if (!strncmp (xattr_prefixes[i].prefix, full_name,
@@ -445,6 +446,7 @@ error_t
 diskfs_list_xattr (struct node *np, char *buffer, int *len)
 {
 
+  error_t err;
   block_t blkno;
   void *block;
   struct ext2_inode *ei;
@@ -463,8 +465,8 @@ diskfs_list_xattr (struct node *np, char *buffer, int *len)
   int size = *len;
 
   ei = dino_ref (np->cache_id);
-
   blkno = ei->i_file_acl;
+  dino_deref (ei);
 
   if (blkno == 0)
     {
@@ -472,29 +474,38 @@ diskfs_list_xattr (struct node *np, char *buffer, int *len)
       return 0;
     }
 
+  err = EIO;
   block = disk_cache_block_ref (blkno);
+  // TODO: if (block)?
 
   header = EXT2_XATTR_HEADER (block);
   if (header->h_magic != EXT2_XATTR_BLOCK_MAGIC || header->h_blocks != 1)
     {
       ext2_warning ("Invalid extended attribute block.");
-      return EIO;
+      err = EIO;
+      goto cleanup;
     }
 
   ext2_debug("block header hash: 0x%x", header->h_hash);
 
   entry = EXT2_XATTR_ENTRY_FIRST (header);
+
   while (!EXT2_XATTR_ENTRY_LAST (entry))
     {
       xattr_print_entry (entry);
-      xattr_entry_list (entry, buffer, &size);
+      err = xattr_entry_list (entry, buffer, &size);
+      if (err)
+	goto cleanup;
       buffer += strlen(buffer) + 1;
       entry = EXT2_XATTR_ENTRY_NEXT (entry);
     }
 
   *len = *len - size;
 
-  return 0;
+cleanup:
+  disk_cache_block_deref (block);
+
+  return err;
 
 }
 
@@ -538,8 +549,8 @@ diskfs_get_xattr (struct node *np, char *name, char *value, int *len)
     size = 0;
 
   ei = dino_ref (np->cache_id);
-
   blkno = ei->i_file_acl;
+  dino_deref (ei);
 
   if (blkno == 0)
     {
@@ -552,23 +563,26 @@ diskfs_get_xattr (struct node *np, char *name, char *value, int *len)
   if (header->h_magic != EXT2_XATTR_BLOCK_MAGIC || header->h_blocks != 1)
     {
       ext2_warning ("Invalid extended attribute block.");
-      return EIO;
+      err = EIO;
+      goto cleanup;
     }
 
-  entry = EXT2_XATTR_ENTRY_FIRST (header);
-
   err = ENODATA;
+  entry = EXT2_XATTR_ENTRY_FIRST (header);
 
   while (!EXT2_XATTR_ENTRY_LAST (entry))
     {
-      if ((err = xattr_entry_get (block, entry, name, value, &size, NULL))
-	  != ENODATA)
+      err = xattr_entry_get (block, entry, name, value, &size, NULL);
+      if (err!= ENODATA)
 	break;
       entry = EXT2_XATTR_ENTRY_NEXT (entry);
     }
 
   if (!err && len)
     *len = size;
+
+cleanup:
+  disk_cache_block_deref (block);
 
   return err;
 
@@ -595,9 +609,9 @@ diskfs_set_xattr (struct node *np, char *name, char *value, int len,
 		  int flags)
 {
 
-  int err;
   int found;
   int rest;
+  error_t err;
   block_t blkno;
   void *block;
   struct ext2_inode *ei;
@@ -618,7 +632,6 @@ diskfs_set_xattr (struct node *np, char *name, char *value, int len,
     return ERANGE;
 
   ei = dino_ref (np->cache_id);
-
   blkno = ei->i_file_acl;
 
   if (blkno == 0)
@@ -646,7 +659,8 @@ diskfs_set_xattr (struct node *np, char *name, char *value, int len,
       if (header->h_magic != EXT2_XATTR_BLOCK_MAGIC || header->h_blocks != 1)
 	{
 	  ext2_warning ("Invalid extended attribute block.");
-	  return EIO;
+	  err = EIO;
+	  goto cleanup;
 	}
     }
 
@@ -687,7 +701,9 @@ diskfs_set_xattr (struct node *np, char *name, char *value, int len,
     }
 
   if (err != 0 && err != ENODATA)
-    return err;
+    {
+      goto cleanup;
+    }
 
   if (location == NULL)
     location = entry;
@@ -697,20 +713,29 @@ diskfs_set_xattr (struct node *np, char *name, char *value, int len,
   ext2_debug("rest: %d", rest);
 
   if (rest < 0)
-    return EIO;
+    {
+      err = EIO;
+      goto cleanup;
+    }
 
   if (value && flags & XATTR_CREATE)
     {
       if (found)
-	return EEXIST;
+	{
+	  err = EEXIST;
+	  goto cleanup;
+	}
       else
 	err = xattr_entry_create (header, entry, location, name, value, len,
-		rest);
+	  rest);
     }
   else if (value && flags & XATTR_REPLACE)
     {
       if (!found)
-	return ENODATA;
+	{
+	  err = ENODATA;
+	  goto cleanup;
+	}
       else
 	err = xattr_entry_replace (header, entry, location, value, len, rest);
     }
@@ -725,9 +750,15 @@ diskfs_set_xattr (struct node *np, char *name, char *value, int len,
   else
     {
       if (flags & XATTR_REPLACE || flags & XATTR_CREATE)
-	return EINVAL;
+	{
+	  err = EINVAL;
+	  goto cleanup;
+	}
       else if (!found)
-	return ENODATA;
+	{
+	  err = ENODATA;
+	  goto cleanup;
+	}
       else
 	err = xattr_entry_remove (header, entry, location, rest);
     }
@@ -759,6 +790,12 @@ diskfs_set_xattr (struct node *np, char *name, char *value, int len,
 	}
     }
 
+cleanup:
+  dino_deref (ei);
+
+  if (block)
+    disk_cache_block_deref (block);
+
   return err;
 
 }
@@ -771,6 +808,7 @@ diskfs_set_xattr (struct node *np, char *name, char *value, int len,
 error_t
 diskfs_free_xattr_block(struct node *np)
 {
+  error_t err;
   block_t blkno;
   void *block;
   struct ext2_inode *ei;
@@ -782,13 +820,16 @@ diskfs_free_xattr_block(struct node *np)
       return EOPNOTSUPP;
     }
 
-  ei = dino_ref (np->cache_id);
+  err = 0;
+  block = 0;
 
+  ei = dino_ref (np->cache_id);
   blkno = ei->i_file_acl;
 
   if (blkno == 0)
     {
-      return 0;
+      err = 0;
+      goto cleanup;
     }
 
   assert (!diskfs_readonly);
@@ -799,7 +840,8 @@ diskfs_free_xattr_block(struct node *np)
   if (header->h_magic != EXT2_XATTR_BLOCK_MAGIC || header->h_blocks != 1)
     {
       ext2_warning ("Invalid extended attribute block.");
-      return EIO;
+      err = EIO;
+      goto cleanup;
     }
 
   if (header->h_refcount == 1)
@@ -817,6 +859,12 @@ diskfs_free_xattr_block(struct node *np)
   ei->i_file_acl = 0;
   record_global_poke (ei);
 
-  return 0;
+cleanup:
+  dino_deref (ei);
+
+  if (block)
+    disk_cache_block_deref (block);
+
+  return err;
 
 }
