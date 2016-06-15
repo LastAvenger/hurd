@@ -438,9 +438,10 @@ xattr_entry_replace (ext2_xattr_header * header,
 
 /*
  * Given a node, return its list of attribute names in a buffer.
- * Returns EOPNOTSUPP if underlying filesystem has no extended
- * attributes support.  Returns EIO if xattr block is invalid (has no
- * valid h_magic number).
+ * The size of used/required buffer will returned through parameter
+ * len, even if the buffer is NULL.  Returns EOPNOTSUPP if underlying
+ * filesystem has no extended attributes support.  Returns EIO if
+ * xattr block is invalid (has no valid h_magic number).
  */
 error_t
 diskfs_list_xattr (struct node *np, char *buffer, int *len)
@@ -476,7 +477,6 @@ diskfs_list_xattr (struct node *np, char *buffer, int *len)
 
   err = EIO;
   block = disk_cache_block_ref (blkno);
-  // TODO: if (block)?
 
   header = EXT2_XATTR_HEADER (block);
   if (header->h_magic != EXT2_XATTR_BLOCK_MAGIC || header->h_blocks != 1)
@@ -496,7 +496,8 @@ diskfs_list_xattr (struct node *np, char *buffer, int *len)
       err = xattr_entry_list (entry, buffer, &size);
       if (err)
 	goto cleanup;
-      buffer += strlen(buffer) + 1;
+      if (buffer)
+        buffer += strlen (buffer) + 1;
       entry = EXT2_XATTR_ENTRY_NEXT (entry);
     }
 
@@ -512,12 +513,13 @@ cleanup:
 
 /*
  * Given a node and an attribute name, returns the value and its
- * length in a buffer.  May return EOPNOTSUPP if underlying filesystem
- * does not support extended attributes or the given name prefix.  If
- * there is no sufficient space in value buffer or attribute name is
- * too long, returns ERANGE.  Returns EIO if xattr block is invalid
- * and ENODATA if there is no such block or no entry in the block
- * matching the name.
+ * length in a buffer. The length is returned through parameter len
+ * even if the value is NULL.  May return EOPNOTSUPP if underlying
+ * filesystem does not support extended attributes or the given name
+ * prefix.  If there is no sufficient space in value buffer or
+ * attribute name is too long, returns ERANGE.  Returns EIO if xattr
+ * block is invalid and ENODATA if there is no such block or no entry
+ * in the block matching the name.
  */
 error_t
 diskfs_get_xattr (struct node *np, char *name, char *value, int *len)
@@ -537,16 +539,13 @@ diskfs_get_xattr (struct node *np, char *name, char *value, int *len)
       return EOPNOTSUPP;
     }
 
-  if (!name)
+  if (!name || !len)
     return EINVAL;
 
   if (strlen(name) > 255)
     return ERANGE;
 
-  if (len)
-    size = *len;
-  else
-    size = 0;
+  size = *len;
 
   ei = dino_ref (np->cache_id);
   blkno = ei->i_file_acl;
@@ -578,7 +577,7 @@ diskfs_get_xattr (struct node *np, char *name, char *value, int *len)
       entry = EXT2_XATTR_ENTRY_NEXT (entry);
     }
 
-  if (!err && len)
+  if (!err)
     *len = size;
 
 cleanup:
@@ -683,7 +682,7 @@ diskfs_set_xattr (struct node *np, char *name, char *value, int len,
 	  location = entry;
 	  found = TRUE;
 	}
-      else if (err == ENODATA)
+      else if (err == ENODATA && !found)
 	{
 	  /* The xattr entry are sorted by attribute name */
 	  if (cmp < 0)
@@ -710,7 +709,7 @@ diskfs_set_xattr (struct node *np, char *name, char *value, int len,
 
   /* 4 null bytes after xattr entry */
   rest -= EXT2_XATTR_ENTRY_OFFSET (header, entry) + 4;
-  ext2_debug("rest: %d", rest);
+  ext2_debug("block_size: %d, rest: %d", block_size, rest);
 
   if (rest < 0)
     {
@@ -776,6 +775,7 @@ diskfs_set_xattr (struct node *np, char *name, char *value, int len,
 	  ext2_free_blocks (blkno, 1);
 	  ei->i_file_acl = blkno;
 	  record_global_poke (ei);
+	  return 0;
 	}
       else
 	{
@@ -787,14 +787,13 @@ diskfs_set_xattr (struct node *np, char *name, char *value, int len,
 	      ei->i_file_acl = blkno;
 	      record_global_poke (ei);
 	    }
+	  return 0;
 	}
     }
 
 cleanup:
+  disk_cache_block_deref (block);
   dino_deref (ei);
-
-  if (block)
-    disk_cache_block_deref (block);
 
   return err;
 
@@ -821,7 +820,7 @@ diskfs_free_xattr_block(struct node *np)
     }
 
   err = 0;
-  block = 0;
+  block = NULL;
 
   ei = dino_ref (np->cache_id);
   blkno = ei->i_file_acl;
@@ -860,10 +859,10 @@ diskfs_free_xattr_block(struct node *np)
   record_global_poke (ei);
 
 cleanup:
-  dino_deref (ei);
-
   if (block)
     disk_cache_block_deref (block);
+
+  dino_deref (ei);
 
   return err;
 
