@@ -35,8 +35,6 @@ list_xattr_test (struct node *np, int exp_len, char *exp_buf,
   assert (len == exp_len);
   assert (memcmp(buf, exp_buf, len) == 0);
 
-  ext2_debug ("[PASS]");
-
 }
 
 static void
@@ -54,8 +52,6 @@ get_xattr_test (struct node *np, char *exp_key, char *exp_val,
   buf[len] = 0;
   assert (strcmp (buf, exp_val) == 0);
 
-  ext2_debug ("[PASS]");
-
 }
 
 static void
@@ -65,8 +61,6 @@ set_xattr_test (struct node *np, char *exp_key,
 {
   assert (diskfs_set_xattr (np, exp_key, exp_val,
     exp_len, exp_flag) == exp_err);
-
-  ext2_debug ("[PASS]");
 
 }
 
@@ -101,25 +95,12 @@ hash_xattr_test (struct node *np, unsigned int hash_arr[], int len)
 
   dino_deref (ei);
   disk_cache_block_deref (block);
-  ext2_debug ("[PASS]");
 
 }
 
-error_t
-diskfs_xattr_test (struct node *np)
+static void
+read_test (struct node *np)
 {
-
-  // set_xattr_test (np);
-  list_xattr_test (np, 26, "user.key_123\0user.key_456\0", 0);
-  get_xattr_test (np, "user.key_123", "val_123", sizeof ("val_123") - 1, 0);
-  get_xattr_test (np, "user.key_456", "val_456", sizeof ("val_456") - 1, 0);
-
-  unsigned int hash_arr[] = {0x43cb502e, 0x6cfa2f34, 0x6cff3cd4};
-  hash_xattr_test (np, hash_arr, 3);
-  return 0;
-
-}
-
 /* Image for testing:
  *
  *  dd if=/dev/zero of=$(IMG) bs=4M count=10
@@ -131,28 +112,44 @@ diskfs_xattr_test (struct node *np)
  *  sudo setfattr -n user.key_456 -v val_456 ./tmp/test || true
  *  sudo umount ./tmp
  *  rm -rf ./tmp
- *
- * Some test cases:
- *  ext2fs: (debug) diskfs_list_xattr: block header hash: 0x43cb502e
- *  ext2fs: (debug) xattr_print_entry: entry:
- *  ext2fs: (debug) xattr_print_entry:      ->e_name_len: 7
- *  ext2fs: (debug) xattr_print_entry:      ->e_name_index: 1
- *  ext2fs: (debug) xattr_print_entry:      ->e_value_offs: 4088
- *  ext2fs: (debug) xattr_print_entry:      ->e_value_block: 0
- *  ext2fs: (debug) xattr_print_entry:      ->e_value_size: 7
- *  ext2fs: (debug) xattr_print_entry:      ->e_hash: 0x6cfa2f34
- *  ext2fs: (debug) xattr_print_entry:      ->e_name: key_123
- *  ext2fs: (debug) xattr_print_entry: entry:
- *  ext2fs: (debug) xattr_print_entry:      ->e_name_len: 7
- *  ext2fs: (debug) xattr_print_entry:      ->e_name_index: 1
- *  ext2fs: (debug) xattr_print_entry:      ->e_value_offs: 4080
- *  ext2fs: (debug) xattr_print_entry:      ->e_value_block: 0
- *  ext2fs: (debug) xattr_print_entry:      ->e_value_size: 7
- *  ext2fs: (debug) xattr_print_entry:      ->e_hash: 0x6cff3cd4
- *  ext2fs: (debug) xattr_print_entry:      ->e_name: key_456
- *
  */
 
+  // Illegal parameter test start
+  int len = 0;
+  assert (diskfs_list_xattr (np, NULL, NULL) == EINVAL);
+  assert (diskfs_list_xattr (np, NULL, &len) == 0 );
+  assert (len == 26);
+
+  assert (diskfs_get_xattr (np, NULL, NULL, &len) == EINVAL);
+  assert (diskfs_get_xattr (np, "user.key_456", NULL, NULL) == EINVAL);
+  assert (diskfs_get_xattr (np, "acl", NULL, &len) == EOPNOTSUPP);
+  assert (diskfs_get_xattr (np, "user.key_456", NULL, &len) == 0);
+  assert (len == 7);
+
+  assert (diskfs_set_xattr (np, NULL, NULL, 0, 0) == EINVAL);
+  assert (diskfs_set_xattr (np, "user.key_012", "val_012", block_size + 10, 0) == ERANGE);
+
+  assert (diskfs_set_xattr (np, "user.key_123", "val_012",
+    sizeof ("val_012") - 1, XATTR_CREATE) == EEXIST);
+  assert (diskfs_set_xattr (np, "user.key_012", "val_012",
+    sizeof ("val_012") - 1, XATTR_REPLACE) == ENODATA);
+  assert (diskfs_set_xattr (np, "user.key_012", NULL, 0, XATTR_CREATE) == EINVAL);
+  assert (diskfs_set_xattr (np, "user.key_012", NULL, 0, XATTR_REPLACE) == EINVAL);
+  assert (diskfs_set_xattr (np, "user.key_012", NULL, 0, 0) == ENODATA);
+
+  // Illegal parameter test end
+  list_xattr_test (np, 26, "user.key_123\0user.key_456\0", 0);
+  get_xattr_test (np, "user.key_123", "val_123", sizeof ("val_123") - 1, 0);
+  get_xattr_test (np, "user.key_456", "val_456", sizeof ("val_456") - 1, 0);
+
+  unsigned int hash_arr[] = {0x43cb502e, 0x6cfa2f34, 0x6cff3cd4};
+  hash_xattr_test (np, hash_arr, 3);
+
+}
+
+static void
+write_test (struct node *np)
+{
 /* Image for testing:
  *
  *  dd if=/dev/zero of=$(IMG) bs=4M count=10
@@ -162,6 +159,32 @@ diskfs_xattr_test (struct node *np)
  *  sudo touch ./tmp/test || true
  *  sudo umount ./tmp
  *  rm -rf ./tmp
- *
  */
 
+  set_xattr_test (np, "user.key_123", "val_123", sizeof ("val_123") - 1, XATTR_CREATE, 0);
+  set_xattr_test (np, "user.key_456", "val_456", sizeof ("val_456") - 1, XATTR_CREATE, 0);
+  read_test (np);
+
+  set_xattr_test (np, "user.key_456", "val_2333333333", sizeof ("val_2333333333") - 1, XATTR_REPLACE, 0);
+  list_xattr_test (np, 26, "user.key_123\0user.key_456\0", 0);
+  get_xattr_test (np, "user.key_123", "val_123", sizeof ("val_123") - 1, 0);
+  get_xattr_test (np, "user.key_456", "val_2333333333", sizeof ("val_2333333333") - 1, 0);
+
+  unsigned int hash_arr[] = {0x43fd5628, 0x6cfa2f34, 0x6cc93ad2};
+  hash_xattr_test (np, hash_arr, 3);
+
+  set_xattr_test (np, "user.key_456", "val_456", sizeof ("val_456") - 1, XATTR_REPLACE, 0);
+  read_test (np);
+
+  set_xattr_test (np, "user.key_123", NULL, 0, 0, 0);
+  set_xattr_test (np, "user.key_456", NULL, 0, 0, 0);
+}
+
+error_t
+diskfs_xattr_test (struct node *np)
+{
+  write_test (np);
+
+  return 0;
+
+}
