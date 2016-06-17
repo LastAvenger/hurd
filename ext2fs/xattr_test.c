@@ -177,7 +177,9 @@ write_test (struct node *np)
   read_test (np);
 
   set_xattr_test (np, "user.key_123", NULL, 0, 0, 0);
+  list_xattr_test (np, 13, "user.key_456", 0);
   set_xattr_test (np, "user.key_456", NULL, 0, 0, 0);
+  list_xattr_test (np, 0, "", 0);
 }
 
 error_t
