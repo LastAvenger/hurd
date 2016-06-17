@@ -43,6 +43,7 @@
 
 #include "ext2fs.h"
 #include "bitmap.c"
+#include "xattr.h"
 
 /* ---------------------------------------------------------------- */
 
@@ -62,6 +63,9 @@ diskfs_free_node (struct node *np, mode_t old_mode)
 
   ext2_debug ("freeing inode %u", inum);
 
+  // TODO: is it right?
+  xattr_free_block (np);
+
   pthread_spin_lock (&global_lock);
 
   if (inum < EXT2_FIRST_INO (sblock) || inum > sblock->s_inodes_count)
@@ -70,6 +74,7 @@ diskfs_free_node (struct node *np, mode_t old_mode)
       pthread_spin_unlock (&global_lock);
       return;
     }
+
 
   block_group = (inum - 1) / sblock->s_inodes_per_group;
   bit = (inum - 1) % sblock->s_inodes_per_group;

@@ -298,7 +298,7 @@ xattr_entry_create (ext2_xattr_header * header,
   entry_size = EXT2_XATTR_ENTRY_SIZE (name_len);
   value_size = EXT2_XATTR_ALIGN (len);
 
-  if (entry_size + value_size > rest)
+  if (entry_size + value_size > rest - 4)
     {
       return ERANGE;
     }
@@ -395,7 +395,7 @@ xattr_entry_replace (ext2_xattr_header * header,
   old_size = EXT2_XATTR_ALIGN (position->e_value_size);
   new_size = EXT2_XATTR_ALIGN (len);
 
-  if (new_size - old_size > rest)
+  if (new_size - old_size > rest - 4)
     return ERANGE;
 
   assert (!diskfs_readonly);
@@ -435,6 +435,84 @@ xattr_entry_replace (ext2_xattr_header * header,
 
 }
 
+
+/*
+ * Given a node, free extended attributes block associated with
+ * this node.
+ */
+error_t
+xattr_free_block (struct node *np)
+{
+  error_t err;
+  block_t blkno;
+  void *block;
+  struct ext2_inode *ei;
+  ext2_xattr_header *header;
+
+  if (!EXT2_HAS_COMPAT_FEATURE (sblock, EXT2_FEATURE_COMPAT_EXT_ATTR))
+    {
+      ext2_warning ("Filesystem has no support for extended attributes.");
+      return EOPNOTSUPP;
+    }
+
+  err = 0;
+  block = NULL;
+
+  ei = dino_ref (np->cache_id);
+  blkno = ei->i_file_acl;
+
+  if (blkno == 0)
+    {
+      err = 0;
+      goto cleanup;
+    }
+
+  assert (!diskfs_readonly);
+
+  block = disk_cache_block_ref (blkno);
+  header = EXT2_XATTR_HEADER (block);
+
+  if (header->h_magic != EXT2_XATTR_BLOCK_MAGIC || header->h_blocks != 1)
+    {
+      ext2_warning ("Invalid extended attribute block.");
+      err = EIO;
+      goto cleanup;
+    }
+
+  if (header->h_refcount == 1)
+    {
+       ext2_debug("free block %d", blkno);
+
+       disk_cache_block_deref (block);
+       ext2_free_blocks(blkno, 1);
+
+       np->dn_stat.st_blocks -= 1 << log2_stat_blocks_per_fs_block;
+       np->dn_stat.st_mode &= ~S_IPTRANS;
+       np->dn_set_ctime = 1;
+    }
+  else
+    {
+       ext2_debug("h_refcount: %d", header->h_refcount);
+
+       header->h_refcount--;
+       record_global_poke (block);
+    }
+
+
+  ei->i_file_acl = 0;
+  record_global_poke (ei);
+
+  return err;
+
+cleanup:
+  if (block)
+    disk_cache_block_deref (block);
+
+  dino_deref (ei);
+
+  return err;
+
+}
 
 /*
  * Given a node, return its list of attribute names in a buffer.
@@ -782,17 +860,10 @@ diskfs_set_xattr (struct node *np, char *name, char *value, int len,
     {
       if (empty)
 	{
-	  ext2_debug("free block %d", blkno);
-	  ext2_free_blocks (blkno, 1);
+	  disk_cache_block_deref (block);
+	  dino_deref (ei);
 
-	  np->dn_stat.st_blocks -= 1 << log2_stat_blocks_per_fs_block;
-	  np->dn_stat.st_mode &= ~S_IPTRANS;
-	  np->dn_set_ctime = 1;
-
-	  ei->i_file_acl = 0;
-	  record_global_poke (ei);
-
-	  return 0;
+	  return xattr_free_block (np);
 	}
       else
 	{
@@ -818,75 +889,6 @@ diskfs_set_xattr (struct node *np, char *name, char *value, int len,
 cleanup:
   if (block)
     disk_cache_block_deref (block);
-  dino_deref (ei);
-
-  return err;
-
-}
-
-/*
- * Given a node, free extended attributes block associated with
- * this node.
- * TODO: call me before the node is freed
- */
-error_t
-diskfs_free_xattr_block(struct node *np)
-{
-  error_t err;
-  block_t blkno;
-  void *block;
-  struct ext2_inode *ei;
-  ext2_xattr_header *header;
-
-  if (!EXT2_HAS_COMPAT_FEATURE (sblock, EXT2_FEATURE_COMPAT_EXT_ATTR))
-    {
-      ext2_warning ("Filesystem has no support for extended attributes.");
-      return EOPNOTSUPP;
-    }
-
-  err = 0;
-  block = NULL;
-
-  ei = dino_ref (np->cache_id);
-  blkno = ei->i_file_acl;
-
-  if (blkno == 0)
-    {
-      err = 0;
-      goto cleanup;
-    }
-
-  assert (!diskfs_readonly);
-
-  block = disk_cache_block_ref (blkno);
-  header = EXT2_XATTR_HEADER (block);
-
-  if (header->h_magic != EXT2_XATTR_BLOCK_MAGIC || header->h_blocks != 1)
-    {
-      ext2_warning ("Invalid extended attribute block.");
-      err = EIO;
-      goto cleanup;
-    }
-
-  if (header->h_refcount == 1)
-    {
-       ext2_debug("free block %d", blkno);
-       ext2_free_blocks(blkno, 1);
-    }
-  else
-    {
-       ext2_debug("h_refcount: %d", header->h_refcount);
-       header->h_refcount--;
-       record_global_poke (block);
-    }
-
-  ei->i_file_acl = 0;
-  record_global_poke (ei);
-
-cleanup:
-  if (block)
-    disk_cache_block_deref (block);
-
   dino_deref (ei);
 
   return err;
