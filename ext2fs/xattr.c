@@ -54,7 +54,7 @@ xattr_prefixes[] =
  * indicating whether a corresponding prefix was found or not.
  */
 static int
-xattr_name_prefix (char *full_name, int *index, char **name)
+xattr_name_prefix (const char *full_name, int *index, const char **name)
 {
   int i;
 
@@ -228,14 +228,14 @@ xattr_entry_list (ext2_xattr_entry * entry, char *buffer, int *len)
  * more than 0 otherwise.
  */
 static error_t
-xattr_entry_get (char *block, ext2_xattr_entry * entry, char *full_name,
+xattr_entry_get (char *block, ext2_xattr_entry * entry, const char *full_name,
 		 char *value, int *len, int *cmp)
 {
 
   int i;
   int index;
-  char *name;
   int tmp_cmp;
+  const char *name;
 
   i = xattr_name_prefix (full_name, &index, &name);
 
@@ -280,17 +280,24 @@ static error_t
 xattr_entry_create (ext2_xattr_header * header,
 		    ext2_xattr_entry * last,
 		    ext2_xattr_entry * position,
-		    char *name, char *value, int len, int rest)
+		    const char *full_name, const char *value,
+		    int len, int rest)
 {
 
+  int i;
   int name_len;
   off_t start;
   off_t end;
   int entry_size;
   int value_size;
   int index;
+  const char *name;
 
-  xattr_name_prefix (name, &index, &name);
+  i = xattr_name_prefix (full_name, &index, &name);
+
+  if (xattr_prefixes[i].prefix == NULL)
+    return EOPNOTSUPP;
+
   ext2_debug("name: %s, value: %s, len %d, rest: %d",
 	  name, value, len, rest);
 
@@ -386,7 +393,7 @@ static error_t
 xattr_entry_replace (ext2_xattr_header * header,
 		     ext2_xattr_entry * last,
 		     ext2_xattr_entry * position,
-		     char *value, int len, int rest)
+		     const char *value, int len, int rest)
 {
 
   ssize_t old_size;
@@ -600,7 +607,7 @@ cleanup:
  * in the block matching the name.
  */
 error_t
-diskfs_get_xattr (struct node *np, char *name, char *value, int *len)
+diskfs_get_xattr (struct node *np, const char *name, char *value, int *len)
 {
 
   int size;
@@ -682,7 +689,7 @@ cleanup:
  * the specified entry, free the xattr block.
  */
 error_t
-diskfs_set_xattr (struct node *np, char *name, char *value, int len,
+diskfs_set_xattr (struct node *np, const char *name, const char *value, int len,
 		  int flags)
 {
 

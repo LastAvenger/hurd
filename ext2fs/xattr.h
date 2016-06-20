@@ -88,8 +88,8 @@ typedef struct _ext2_xattr_entry ext2_xattr_entry;
 /* Public functions. */
 error_t xattr_free_block (struct node *np);
 error_t diskfs_list_xattr (struct node *, char *, int *);
-error_t diskfs_get_xattr (struct node *, char *, char *, int *);
-error_t diskfs_set_xattr (struct node *, char *, char *, int, int);
+error_t diskfs_get_xattr (struct node *, const char *, char *, int *);
+error_t diskfs_set_xattr (struct node *, const char *, const char *, int, int);
 error_t diskfs_free_xattr_block(struct node *);
 
 
