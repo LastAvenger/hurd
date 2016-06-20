@@ -173,6 +173,12 @@ write_test (struct node *np)
   unsigned int hash_arr[] = {0x43fd5628, 0x6cfa2f34, 0x6cc93ad2};
   hash_xattr_test (np, hash_arr, 3);
 
+  set_xattr_test (np, "user.key_123", "abc", sizeof ("abc") - 1, XATTR_REPLACE, 0);
+  get_xattr_test (np, "user.key_123", "abc", sizeof ("abc") - 1, 0);
+  set_xattr_test (np, "user.key_456", "def", sizeof ("def") - 1, XATTR_REPLACE, 0);
+  get_xattr_test (np, "user.key_456", "def", sizeof ("def") - 1, 0);
+
+  set_xattr_test (np, "user.key_123", "val_123", sizeof ("val_123") - 1, XATTR_REPLACE, 0);
   set_xattr_test (np, "user.key_456", "val_456", sizeof ("val_456") - 1, XATTR_REPLACE, 0);
   read_test (np);
 
