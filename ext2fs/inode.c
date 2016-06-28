@@ -19,6 +19,9 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA. */
 
+#define EXT2FS_DEBUG
+extern int ext2_debug_flag;
+
 #include "ext2fs.h"
 #include "xattr.h"
 #include <string.h>
@@ -542,6 +545,7 @@ error_t
 diskfs_set_translator (struct node *np, const char *name, unsigned namelen,
 		       struct protid *cred)
 {
+  ext2_debug("called");
   int len;
   error_t err;
 
@@ -565,6 +569,20 @@ diskfs_set_translator (struct node *np, const char *name, unsigned namelen,
     }
 
   diskfs_end_catch_exception ();
+
+  ext2_debug("err: %d", err);
+
+  if (err == 0)
+    {
+      int i = 1;
+      ext2_debug("len: %d", namelen);
+      while (i < namelen)
+	{
+	   ext2_debug("%s", name + i);
+	   i += strlen(name + i) + 1;
+	}
+    }
+
   return err;
 
 }
@@ -578,6 +596,7 @@ diskfs_get_translator (struct node *np, char **namep, unsigned *namelen)
   int datalen;
   // unsigned
 
+  ext2_debug("called");
   err = diskfs_catch_exception ();
   if (err)
     return err;
@@ -592,6 +611,7 @@ diskfs_get_translator (struct node *np, char **namep, unsigned *namelen)
   else
     err = diskfs_get_xattr (np, "gnu.translator", *namep, &datalen);
 
+  ext2_debug("%s", *namep);
   diskfs_end_catch_exception ();
 
   *namelen = datalen;
