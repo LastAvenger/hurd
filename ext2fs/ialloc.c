@@ -43,7 +43,6 @@
 
 #include "ext2fs.h"
 #include "bitmap.c"
-#include "xattr.h"
 
 /* ---------------------------------------------------------------- */
 
@@ -64,7 +63,7 @@ diskfs_free_node (struct node *np, mode_t old_mode)
   ext2_debug ("freeing inode %u", inum);
 
   // TODO: is it right?
-  xattr_free_block (np);
+  ext2_xattr_free (np);
 
   pthread_spin_lock (&global_lock);
 

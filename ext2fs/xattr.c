@@ -310,8 +310,6 @@ xattr_entry_create (ext2_xattr_header * header,
       return ERANGE;
     }
 
-  assert (!diskfs_readonly);
-
   start = EXT2_XATTR_ENTRY_OFFSET (header, position);
   end = EXT2_XATTR_ENTRY_OFFSET (header, last);
 
@@ -348,8 +346,6 @@ xattr_entry_remove (ext2_xattr_header * header,
   off_t start;
   off_t end;
   ext2_xattr_entry *entry;
-
-  assert (!diskfs_readonly);
 
   /* Remove the value */
   size = EXT2_XATTR_ALIGN (position->e_value_size);
@@ -405,8 +401,6 @@ xattr_entry_replace (ext2_xattr_header * header,
   if (new_size - old_size > rest - 4)
     return ERANGE;
 
-  assert (!diskfs_readonly);
-
   if (new_size != old_size)
     {
       off_t start;
@@ -448,7 +442,7 @@ xattr_entry_replace (ext2_xattr_header * header,
  * this node.
  */
 error_t
-xattr_free_block (struct node *np)
+ext2_xattr_free (struct node *np)
 {
   error_t err;
   block_t blkno;
@@ -529,7 +523,7 @@ cleanup:
  * xattr block is invalid (has no valid h_magic number).
  */
 error_t
-diskfs_list_xattr (struct node *np, char *buffer, int *len)
+ext2_list_xattr (struct node *np, char *buffer, int *len)
 {
 
   error_t err;
@@ -607,7 +601,7 @@ cleanup:
  * in the block matching the name.
  */
 error_t
-diskfs_get_xattr (struct node *np, const char *name, char *value, int *len)
+ext2_get_xattr (struct node *np, const char *name, char *value, int *len)
 {
 
   int size;
@@ -689,7 +683,7 @@ cleanup:
  * the specified entry, free the xattr block.
  */
 error_t
-diskfs_set_xattr (struct node *np, const char *name, const char *value, int len,
+ext2_set_xattr (struct node *np, const char *name, const char *value, int len,
 		  int flags)
 {
 
@@ -870,7 +864,7 @@ diskfs_set_xattr (struct node *np, const char *name, const char *value, int len,
 	  disk_cache_block_deref (block);
 	  dino_deref (ei);
 
-	  return xattr_free_block (np);
+	  return ext2_xattr_free (np);
 	}
       else
 	{

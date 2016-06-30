@@ -23,7 +23,6 @@
 extern int ext2_debug_flag;
 
 #include "ext2fs.h"
-#include "xattr.h"
 #include <string.h>
 #include <unistd.h>
 #include <stdio.h>
@@ -579,18 +578,18 @@ diskfs_set_translator (struct node *np, const char *name, unsigned namelen,
       dino_deref (di);
     }
 
-  err = diskfs_get_xattr(np, "gnu.translator", NULL, &len);
+  err = ext2_get_xattr(np, "gnu.translator", NULL, &len);
   if (err && err != ENODATA)
     return err;
 
   if (namelen && err == ENODATA)
     {
-      err = diskfs_set_xattr(np, "gnu.translator", name, namelen,
+      err = ext2_set_xattr(np, "gnu.translator", name, namelen,
 	XATTR_CREATE);
     }
   else if (!namelen && !err)
     {
-      err = diskfs_set_xattr(np, "gnu.translator", NULL, 0, 0);
+      err = ext2_set_xattr(np, "gnu.translator", NULL, 0, 0);
     }
 
 
@@ -661,7 +660,7 @@ diskfs_get_translator (struct node *np, char **namep, unsigned *namelen)
 	}
     }
 
-  err = diskfs_get_xattr (np, "gnu.translator", NULL, &datalen);
+  err = ext2_get_xattr (np, "gnu.translator", NULL, &datalen);
   if (err)
     return err;
 
@@ -669,7 +668,7 @@ diskfs_get_translator (struct node *np, char **namep, unsigned *namelen)
   if (!*namep)
     err = ENOMEM;
   else
-    err = diskfs_get_xattr (np, "gnu.translator", *namep, &datalen);
+    err = ext2_get_xattr (np, "gnu.translator", *namep, &datalen);
 
   ext2_debug("%s", *namep);
   diskfs_end_catch_exception ();

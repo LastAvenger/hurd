@@ -30,7 +30,7 @@ list_xattr_test (struct node *np, int exp_len, char *exp_buf,
   char buf[256];
   int len = sizeof (buf);
 
-  assert (diskfs_list_xattr (np, buf, &len) == exp_err);
+  assert (ext2_list_xattr (np, buf, &len) == exp_err);
 
   assert (len == exp_len);
   assert (memcmp(buf, exp_buf, len) == 0);
@@ -45,7 +45,7 @@ get_xattr_test (struct node *np, char *exp_key, char *exp_val,
   int len = sizeof (buf);
 
   memset (buf, 0, sizeof(len));
-  assert (diskfs_get_xattr (np, exp_key, buf, &len) == exp_err);
+  assert (ext2_get_xattr (np, exp_key, buf, &len) == exp_err);
 
   assert (len == exp_len);
 
@@ -59,7 +59,7 @@ set_xattr_test (struct node *np, char *exp_key,
 		char *exp_val, int exp_len,
 		int exp_flag, error_t exp_err)
 {
-  assert (diskfs_set_xattr (np, exp_key, exp_val,
+  assert (ext2_set_xattr (np, exp_key, exp_val,
     exp_len, exp_flag) == exp_err);
 
 }
@@ -116,26 +116,26 @@ read_test (struct node *np)
 
   // Illegal parameter test start
   int len = 0;
-  assert (diskfs_list_xattr (np, NULL, NULL) == EINVAL);
-  assert (diskfs_list_xattr (np, NULL, &len) == 0 );
+  assert (ext2_list_xattr (np, NULL, NULL) == EINVAL);
+  assert (ext2_list_xattr (np, NULL, &len) == 0 );
   assert (len == 26);
 
-  assert (diskfs_get_xattr (np, NULL, NULL, &len) == EINVAL);
-  assert (diskfs_get_xattr (np, "user.key_456", NULL, NULL) == EINVAL);
-  assert (diskfs_get_xattr (np, "acl", NULL, &len) == EOPNOTSUPP);
-  assert (diskfs_get_xattr (np, "user.key_456", NULL, &len) == 0);
+  assert (ext2_get_xattr (np, NULL, NULL, &len) == EINVAL);
+  assert (ext2_get_xattr (np, "user.key_456", NULL, NULL) == EINVAL);
+  assert (ext2_get_xattr (np, "acl", NULL, &len) == EOPNOTSUPP);
+  assert (ext2_get_xattr (np, "user.key_456", NULL, &len) == 0);
   assert (len == 7);
 
-  assert (diskfs_set_xattr (np, NULL, NULL, 0, 0) == EINVAL);
-  assert (diskfs_set_xattr (np, "user.key_012", "val_012", block_size + 10, 0) == ERANGE);
+  assert (ext2_set_xattr (np, NULL, NULL, 0, 0) == EINVAL);
+  assert (ext2_set_xattr (np, "user.key_012", "val_012", block_size + 10, 0) == ERANGE);
 
-  assert (diskfs_set_xattr (np, "user.key_123", "val_012",
+  assert (ext2_set_xattr (np, "user.key_123", "val_012",
     sizeof ("val_012") - 1, XATTR_CREATE) == EEXIST);
-  assert (diskfs_set_xattr (np, "user.key_012", "val_012",
+  assert (ext2_set_xattr (np, "user.key_012", "val_012",
     sizeof ("val_012") - 1, XATTR_REPLACE) == ENODATA);
-  assert (diskfs_set_xattr (np, "user.key_012", NULL, 0, XATTR_CREATE) == EINVAL);
-  assert (diskfs_set_xattr (np, "user.key_012", NULL, 0, XATTR_REPLACE) == EINVAL);
-  assert (diskfs_set_xattr (np, "user.key_012", NULL, 0, 0) == ENODATA);
+  assert (ext2_set_xattr (np, "user.key_012", NULL, 0, XATTR_CREATE) == EINVAL);
+  assert (ext2_set_xattr (np, "user.key_012", NULL, 0, XATTR_REPLACE) == EINVAL);
+  assert (ext2_set_xattr (np, "user.key_012", NULL, 0, 0) == ENODATA);
 
   // Illegal parameter test end
   list_xattr_test (np, 26, "user.key_123\0user.key_456\0", 0);
@@ -186,6 +186,12 @@ write_test (struct node *np)
   list_xattr_test (np, 13, "user.key_456", 0);
   set_xattr_test (np, "user.key_456", NULL, 0, 0, 0);
   list_xattr_test (np, 0, "", 0);
+
+  set_xattr_test (np, "gnu.translotor", "/hurd/hello\0-c\0hello\0",
+          sizeof("/hurd/hello\0-c\0hello\0") - 1, XATTR_CREATE, 0);
+  list_xattr_test (np, sizeof("gnu.translotor"), "gnu.translotor", 0);
+  get_xattr_test (np, "gnu.translotor", "/hurd/hello\0-c\0hello\0",
+          sizeof ("/hurd/hello\0-c\0hello\0") - 1, 0);
 }
 
 error_t
