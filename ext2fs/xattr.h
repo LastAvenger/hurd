@@ -28,7 +28,7 @@
 #define EXT2_XATTR_BLOCK_MAGIC 0xEA020000
 
 /* xattr block header. */
-struct _ext2_xattr_header
+struct ext2_xattr_header
 {
   __u32 h_magic;	/* h_magic number for identification */
   __u32 h_refcount;	/* reference count */
@@ -38,7 +38,7 @@ struct _ext2_xattr_header
 };
 
 /* xattr entry in xattr block. */
-struct _ext2_xattr_entry
+struct ext2_xattr_entry
 {
   __u8 e_name_len;	/* length of name */
   __u8 e_name_index;	/* attribute name index */
@@ -48,9 +48,6 @@ struct _ext2_xattr_entry
   __u32 e_hash;		/* hash value of name and value */
   char e_name[0];	/* attribute name */
 };
-
-typedef struct _ext2_xattr_header ext2_xattr_header;
-typedef struct _ext2_xattr_entry ext2_xattr_entry;
 
 #define EXT2_XATTR_PAD_BITS 2
 #define EXT2_XATTR_PAD (1 << EXT2_XATTR_PAD_BITS)
@@ -62,11 +59,11 @@ typedef struct _ext2_xattr_entry ext2_xattr_entry;
 			     (~EXT2_XATTR_ROUND))
 
 /* Given a fs block, return the xattr header. */
-#define EXT2_XATTR_HEADER(block) ((ext2_xattr_header *) block)
+#define EXT2_XATTR_HEADER(block) ((struct ext2_xattr_header *) block)
 
 /* Aligned size of entry, including the name length. */
 #define EXT2_XATTR_ENTRY_SIZE(len) EXT2_XATTR_ALIGN ((sizeof \
-						      (ext2_xattr_entry) + \
+						      (struct ext2_xattr_entry) + \
 						      len))
 
 /* Offset of entry, given the block header. */
@@ -74,10 +71,10 @@ typedef struct _ext2_xattr_entry ext2_xattr_entry;
 							 (char *) header))
 
 /* First entry of xattr block, given its header. */
-#define EXT2_XATTR_ENTRY_FIRST(header) ((ext2_xattr_entry *) (header + 1))
+#define EXT2_XATTR_ENTRY_FIRST(header) ((struct ext2_xattr_entry *) (header + 1))
 
 /* Next entry, giving an entry. */
-#define EXT2_XATTR_ENTRY_NEXT(entry) ((ext2_xattr_entry *) \
+#define EXT2_XATTR_ENTRY_NEXT(entry) ((struct ext2_xattr_entry *) \
 				      ((char *) entry + \
 				       EXT2_XATTR_ENTRY_SIZE \
 				       (entry->e_name_len)))

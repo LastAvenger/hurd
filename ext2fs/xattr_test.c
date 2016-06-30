@@ -72,8 +72,8 @@ hash_xattr_test (struct node *np, unsigned int hash_arr[], int len)
   void *block;
   block_t blkno;
   struct ext2_inode *ei;
-  ext2_xattr_header *header;
-  ext2_xattr_entry *entry;
+  struct ext2_xattr_header *header;
+  struct ext2_xattr_entry *entry;
 
   ei = dino_ref (np->cache_id);
   blkno = ei->i_file_acl;

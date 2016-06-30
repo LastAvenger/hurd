@@ -78,8 +78,8 @@ xattr_name_prefix (const char *full_name, int *index, const char **name)
  * entry.
  */
 static void
-xattr_entry_hash (ext2_xattr_header * header,
-		  ext2_xattr_entry * entry)
+xattr_entry_hash (struct ext2_xattr_header * header,
+		  struct ext2_xattr_entry * entry)
 {
 
   __u32 hash = 0;
@@ -121,12 +121,12 @@ xattr_entry_hash (ext2_xattr_header * header,
  * of the header.
  */
 static void
-xattr_entry_rehash (ext2_xattr_header * header,
-		   ext2_xattr_entry * entry)
+xattr_entry_rehash (struct ext2_xattr_header * header,
+		    struct ext2_xattr_entry * entry)
 {
 
   __u32 hash = 0;
-  ext2_xattr_entry *position;
+  struct ext2_xattr_entry *position;
 
   xattr_entry_hash (header, entry);
 
@@ -154,7 +154,7 @@ xattr_entry_rehash (ext2_xattr_header * header,
 
 #undef BLOCK_HASH_SHIFT
 
-void xattr_print_entry (ext2_xattr_entry *entry)
+void xattr_print_entry (struct ext2_xattr_entry *entry)
 {
   ext2_debug ("entry:");
   ext2_debug ("\t->e_name_len: %d", entry->e_name_len);
@@ -176,7 +176,7 @@ void xattr_print_entry (ext2_xattr_entry *entry)
  * 
  */
 static error_t
-xattr_entry_list (ext2_xattr_entry * entry, char *buffer, int *len)
+xattr_entry_list (struct ext2_xattr_entry * entry, char *buffer, int *len)
 {
 
   int i;
@@ -228,7 +228,7 @@ xattr_entry_list (ext2_xattr_entry * entry, char *buffer, int *len)
  * more than 0 otherwise.
  */
 static error_t
-xattr_entry_get (char *block, ext2_xattr_entry * entry, const char *full_name,
+xattr_entry_get (char *block, struct ext2_xattr_entry * entry, const char *full_name,
 		 char *value, int *len, int *cmp)
 {
 
@@ -277,9 +277,9 @@ xattr_entry_get (char *block, ext2_xattr_entry * entry, const char *full_name,
  * available for the required size of the entry, ERANGE is returned.
  */
 static error_t
-xattr_entry_create (ext2_xattr_header * header,
-		    ext2_xattr_entry * last,
-		    ext2_xattr_entry * position,
+xattr_entry_create (struct ext2_xattr_header * header,
+		    struct ext2_xattr_entry * last,
+		    struct ext2_xattr_entry * position,
 		    const char *full_name, const char *value,
 		    int len, int rest)
 {
@@ -337,15 +337,15 @@ xattr_entry_create (ext2_xattr_header * header,
  * to be removed and the remaining space in the block.
  */
 static error_t
-xattr_entry_remove (ext2_xattr_header * header,
-		    ext2_xattr_entry * last,
-		    ext2_xattr_entry * position, int rest)
+xattr_entry_remove (struct ext2_xattr_header * header,
+		    struct ext2_xattr_entry * last,
+		    struct ext2_xattr_entry * position, int rest)
 {
 
   size_t size;
   off_t start;
   off_t end;
-  ext2_xattr_entry *entry;
+  struct ext2_xattr_entry *entry;
 
   /* Remove the value */
   size = EXT2_XATTR_ALIGN (position->e_value_size);
@@ -386,9 +386,9 @@ xattr_entry_remove (ext2_xattr_header * header,
  * bigger than the old one).
  */
 static error_t
-xattr_entry_replace (ext2_xattr_header * header,
-		     ext2_xattr_entry * last,
-		     ext2_xattr_entry * position,
+xattr_entry_replace (struct ext2_xattr_header * header,
+		     struct ext2_xattr_entry * last,
+		     struct ext2_xattr_entry * position,
 		     const char *value, int len, int rest)
 {
 
@@ -405,7 +405,7 @@ xattr_entry_replace (ext2_xattr_header * header,
     {
       off_t start;
       off_t end;
-      ext2_xattr_entry *entry;
+      struct ext2_xattr_entry *entry;
 
       start = EXT2_XATTR_ENTRY_OFFSET (header, last) + rest;
       end = position->e_value_offs;
@@ -448,7 +448,7 @@ ext2_xattr_free (struct node *np)
   block_t blkno;
   void *block;
   struct ext2_inode *ei;
-  ext2_xattr_header *header;
+  struct ext2_xattr_header *header;
 
   if (!EXT2_HAS_COMPAT_FEATURE (sblock, EXT2_FEATURE_COMPAT_EXT_ATTR))
     {
@@ -530,8 +530,8 @@ ext2_list_xattr (struct node *np, char *buffer, int *len)
   block_t blkno;
   void *block;
   struct ext2_inode *ei;
-  ext2_xattr_header *header;
-  ext2_xattr_entry *entry;
+  struct ext2_xattr_header *header;
+  struct ext2_xattr_entry *entry;
 
   if (!EXT2_HAS_COMPAT_FEATURE (sblock, EXT2_FEATURE_COMPAT_EXT_ATTR))
     {
@@ -609,8 +609,8 @@ ext2_get_xattr (struct node *np, const char *name, char *value, int *len)
   void *block;
   struct ext2_inode *ei;
   block_t blkno;
-  ext2_xattr_header *header;
-  ext2_xattr_entry *entry;
+  struct ext2_xattr_header *header;
+  struct ext2_xattr_entry *entry;
 
   if (!EXT2_HAS_COMPAT_FEATURE (sblock, EXT2_FEATURE_COMPAT_EXT_ATTR))
     {
@@ -684,7 +684,7 @@ cleanup:
  */
 error_t
 ext2_set_xattr (struct node *np, const char *name, const char *value, int len,
-		  int flags)
+		int flags)
 {
 
   int found;
@@ -693,9 +693,9 @@ ext2_set_xattr (struct node *np, const char *name, const char *value, int len,
   block_t blkno;
   void *block;
   struct ext2_inode *ei;
-  ext2_xattr_header *header;
-  ext2_xattr_entry *entry;
-  ext2_xattr_entry *location;
+  struct ext2_xattr_header *header;
+  struct ext2_xattr_entry *entry;
+  struct ext2_xattr_entry *location;
 
   if (!EXT2_HAS_COMPAT_FEATURE (sblock, EXT2_FEATURE_COMPAT_EXT_ATTR))
     {
