@@ -556,6 +556,7 @@ diskfs_set_translator (struct node *np, const char *name, unsigned namelen,
   /* When a old translator record found, clear it */
   if (sblock->s_creator_os == EXT2_OS_HURD)
     {
+      ext2_debug ("ext2_os_hurd");
       daddr_t blkno;
       struct ext2_inode *di;
 
@@ -574,8 +575,16 @@ diskfs_set_translator (struct node *np, const char *name, unsigned namelen,
 	  np->dn_stat.st_mode &= ~S_IPTRANS;
 	  np->dn_set_ctime = 1;
 	}
+      else
+	{
+	  ext2_debug ("no old trans found in hurd img" );
+	  dino_deref (di);
+	}
 
-      dino_deref (di);
+    }
+  else
+    {
+      ext2_debug ("no old trans found" );
     }
 
   err = ext2_get_xattr(np, "gnu.translator", NULL, &len);
@@ -586,6 +595,8 @@ diskfs_set_translator (struct node *np, const char *name, unsigned namelen,
     {
       err = ext2_set_xattr(np, "gnu.translator", name, namelen,
 	XATTR_CREATE);
+      np->dn_stat.st_mode |= S_IPTRANS;
+      np->dn_set_ctime = 1;
     }
   else if (!namelen && !err)
     {
@@ -627,6 +638,7 @@ diskfs_get_translator (struct node *np, char **namep, unsigned *namelen)
   /* When a old translator record found, read it firstly */
   if (sblock->s_creator_os == EXT2_OS_HURD)
     {
+      ext2_debug ("ext2_os_hurd");
       daddr_t blkno;
       void *transloc;
       struct ext2_inode *di;
@@ -637,7 +649,7 @@ diskfs_get_translator (struct node *np, char **namep, unsigned *namelen)
 
       if (blkno)
 	{
-	  ext2_debug("old translotor record found %d, please update it");
+	  ext2_debug("old translotor record found %d, please update it", blkno);
 	  transloc = disk_cache_block_ref (blkno);
 	  datalen = ((unsigned char *)transloc)[0] +
 	    (((unsigned char *)transloc)[1] << 8);
@@ -658,6 +670,14 @@ diskfs_get_translator (struct node *np, char **namep, unsigned *namelen)
 	  *namelen = datalen;
 	  return err;
 	}
+      else
+	{
+	  ext2_debug ("no old trans found in hurd img" );
+	}
+    }
+  else
+    {
+      ext2_debug ("no old trans found" );
     }
 
   err = ext2_get_xattr (np, "gnu.translator", NULL, &datalen);
