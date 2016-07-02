@@ -19,10 +19,6 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA. */
 
-/* Enable debug output */
-#define EXT2FS_DEBUG
-int ext2_debug_flag = 1;
-
 #include "ext2fs.h"
 #include "xattr.h"
 #include <stdlib.h>
@@ -78,8 +74,8 @@ xattr_name_prefix (const char *full_name, int *index, const char **name)
  * entry.
  */
 static void
-xattr_entry_hash (struct ext2_xattr_header * header,
-		  struct ext2_xattr_entry * entry)
+xattr_entry_hash (struct ext2_xattr_header *header,
+		  struct ext2_xattr_entry *entry)
 {
 
   __u32 hash = 0;
@@ -107,8 +103,6 @@ xattr_entry_hash (struct ext2_xattr_header * header,
 
   entry->e_hash = hash;
 
-  ext2_debug("0x%x", hash);
-
 }
 
 #undef NAME_HASH_SHIFT
@@ -121,8 +115,8 @@ xattr_entry_hash (struct ext2_xattr_header * header,
  * of the header.
  */
 static void
-xattr_entry_rehash (struct ext2_xattr_header * header,
-		    struct ext2_xattr_entry * entry)
+xattr_entry_rehash (struct ext2_xattr_header *header,
+		    struct ext2_xattr_entry *entry)
 {
 
   __u32 hash = 0;
@@ -148,23 +142,10 @@ xattr_entry_rehash (struct ext2_xattr_header * header,
     }
 
   header->h_hash = hash;
-  ext2_debug("hash: 0x%x", hash);
 
 }
 
 #undef BLOCK_HASH_SHIFT
-
-void xattr_print_entry (struct ext2_xattr_entry *entry)
-{
-  ext2_debug ("entry:");
-  ext2_debug ("\t->e_name_len: %d", entry->e_name_len);
-  ext2_debug ("\t->e_name_index: %d", entry->e_name_index);
-  ext2_debug ("\t->e_value_offs: %d", entry->e_value_offs);
-  ext2_debug ("\t->e_value_block: %d", entry->e_value_block);
-  ext2_debug ("\t->e_value_size: %d", entry->e_value_size);
-  ext2_debug ("\t->e_hash: 0x%x", entry->e_hash);
-  ext2_debug ("\t->e_name: %.*s", entry->e_name_len, entry->e_name);
-}
 
 /*
  * Given an entry, appends its name to a buffer.  The provided buffer
@@ -176,7 +157,7 @@ void xattr_print_entry (struct ext2_xattr_entry *entry)
  * 
  */
 static error_t
-xattr_entry_list (struct ext2_xattr_entry * entry, char *buffer, int *len)
+xattr_entry_list (struct ext2_xattr_entry *entry, char *buffer, int *len)
 {
 
   int i;
@@ -228,8 +209,8 @@ xattr_entry_list (struct ext2_xattr_entry * entry, char *buffer, int *len)
  * more than 0 otherwise.
  */
 static error_t
-xattr_entry_get (char *block, struct ext2_xattr_entry * entry, const char *full_name,
-		 char *value, int *len, int *cmp)
+xattr_entry_get (char *block, struct ext2_xattr_entry *entry,
+		 const char *full_name, char *value, int *len, int *cmp)
 {
 
   int i;
@@ -277,9 +258,9 @@ xattr_entry_get (char *block, struct ext2_xattr_entry * entry, const char *full_
  * available for the required size of the entry, ERANGE is returned.
  */
 static error_t
-xattr_entry_create (struct ext2_xattr_header * header,
-		    struct ext2_xattr_entry * last,
-		    struct ext2_xattr_entry * position,
+xattr_entry_create (struct ext2_xattr_header *header,
+		    struct ext2_xattr_entry *last,
+		    struct ext2_xattr_entry *position,
 		    const char *full_name, const char *value,
 		    int len, int rest)
 {
@@ -297,9 +278,6 @@ xattr_entry_create (struct ext2_xattr_header * header,
 
   if (xattr_prefixes[i].prefix == NULL)
     return EOPNOTSUPP;
-
-  ext2_debug("name: %s, value: %s, len %d, rest: %d",
-	  name, value, len, rest);
 
   name_len = strlen (name);
   entry_size = EXT2_XATTR_ENTRY_SIZE (name_len);
@@ -337,9 +315,9 @@ xattr_entry_create (struct ext2_xattr_header * header,
  * to be removed and the remaining space in the block.
  */
 static error_t
-xattr_entry_remove (struct ext2_xattr_header * header,
-		    struct ext2_xattr_entry * last,
-		    struct ext2_xattr_entry * position, int rest)
+xattr_entry_remove (struct ext2_xattr_header *header,
+		    struct ext2_xattr_entry *last,
+		    struct ext2_xattr_entry *position, int rest)
 {
 
   size_t size;
@@ -386,9 +364,9 @@ xattr_entry_remove (struct ext2_xattr_header * header,
  * bigger than the old one).
  */
 static error_t
-xattr_entry_replace (struct ext2_xattr_header * header,
-		     struct ext2_xattr_entry * last,
-		     struct ext2_xattr_entry * position,
+xattr_entry_replace (struct ext2_xattr_header *header,
+		     struct ext2_xattr_entry *last,
+		     struct ext2_xattr_entry *position,
 		     const char *value, int len, int rest)
 {
 
@@ -565,13 +543,10 @@ ext2_list_xattr (struct node *np, char *buffer, int *len)
       goto cleanup;
     }
 
-  ext2_debug("block header hash: 0x%x", header->h_hash);
-
   entry = EXT2_XATTR_ENTRY_FIRST (header);
 
   while (!EXT2_XATTR_ENTRY_LAST (entry))
     {
-      xattr_print_entry (entry);
       err = xattr_entry_list (entry, buffer, &size);
       if (err)
 	goto cleanup;
@@ -727,11 +702,8 @@ ext2_set_xattr (struct node *np, const char *name, const char *value, int len,
       if (blkno == 0)
 	{
 	  err = ENOSPC;
-	  ext2_debug ("no space");
 	  goto cleanup;
 	}
-
-      ext2_debug ("new block %d", blkno);
 
       memset (block, 0, block_size);
 
@@ -767,7 +739,6 @@ ext2_set_xattr (struct node *np, const char *name, const char *value, int len,
       err = xattr_entry_get (NULL, entry, name, NULL, &size, &cmp);
       if (err == 0)
 	{
-	  ext2_debug ("found");
 	  location = entry;
 	  found = TRUE;
 	}
@@ -776,7 +747,6 @@ ext2_set_xattr (struct node *np, const char *name, const char *value, int len,
 	  /* The xattr entry are sorted by attribute name */
 	  if (cmp < 0 && !found)
 	    {
-	      ext2_debug ("get slot");
 	      location = entry;
 	      found = FALSE;
 	    }
@@ -799,7 +769,7 @@ ext2_set_xattr (struct node *np, const char *name, const char *value, int len,
     location = entry;
 
   rest = rest - EXT2_XATTR_ENTRY_OFFSET (header, entry);
-  ext2_debug("block_size: %d, rest: %d ", block_size, rest);
+  ext2_debug("space rest: %d", rest);
 
   /* 4 null bytes after xattr entry */
   if (rest < 4)

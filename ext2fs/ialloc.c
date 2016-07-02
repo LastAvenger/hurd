@@ -62,7 +62,6 @@ diskfs_free_node (struct node *np, mode_t old_mode)
 
   ext2_debug ("freeing inode %u", inum);
 
-  // TODO: is it right?
   ext2_xattr_free (np);
 
   pthread_spin_lock (&global_lock);
@@ -73,7 +72,6 @@ diskfs_free_node (struct node *np, mode_t old_mode)
       pthread_spin_unlock (&global_lock);
       return;
     }
-
 
   block_group = (inum - 1) / sblock->s_inodes_per_group;
   bit = (inum - 1) % sblock->s_inodes_per_group;

@@ -16,11 +16,23 @@
 
 /* Enable debug output */
 #define EXT2FS_DEBUG
-extern int ext2_debug_flag;
+int ext2_debug_flag = 1;
 
 #include "ext2fs.h"
 #include "xattr.h"
 #include <sys/xattr.h>
+
+static void xattr_print_entry (struct ext2_xattr_entry *entry)
+{
+  ext2_debug ("entry:");
+  ext2_debug ("\t->e_name_len: %d", entry->e_name_len);
+  ext2_debug ("\t->e_name_index: %d", entry->e_name_index);
+  ext2_debug ("\t->e_value_offs: %d", entry->e_value_offs);
+  ext2_debug ("\t->e_value_block: %d", entry->e_value_block);
+  ext2_debug ("\t->e_value_size: %d", entry->e_value_size);
+  ext2_debug ("\t->e_hash: 0x%x", entry->e_hash);
+  ext2_debug ("\t->e_name: %.*s", entry->e_name_len, entry->e_name);
+}
 
 static void
 list_xattr_test (struct node *np, int exp_len, char *exp_buf,
