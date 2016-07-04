@@ -581,6 +581,6 @@ extern void ext2_warning (const char *, ...)
 error_t ext2_list_xattr (struct node *np, char *buffer, int *len);
 error_t ext2_get_xattr (struct node *np, const char *name, char *value, int *len);
 error_t ext2_set_xattr (struct node *np, const char *name, const char *value, int len, int flags);
-error_t ext2_xattr_free (struct node *np);
+error_t ext2_free_xattr_block (struct node *np);
 
 #endif

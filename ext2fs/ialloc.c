@@ -62,7 +62,7 @@ diskfs_free_node (struct node *np, mode_t old_mode)
 
   ext2_debug ("freeing inode %u", inum);
 
-  ext2_xattr_free (np);
+  ext2_free_xattr_block (np);
 
   pthread_spin_lock (&global_lock);
 

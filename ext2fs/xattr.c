@@ -154,7 +154,6 @@ xattr_entry_rehash (struct ext2_xattr_header *header,
  * supported) if the entry index cannot be found on the array of
  * supported prefixes.  If a buffer is provided (not NULL) and its
  * length is not enough for name, ERANGE is returned.
- * 
  */
 static error_t
 xattr_entry_list (struct ext2_xattr_entry *entry, char *buffer, int *len)
@@ -420,7 +419,7 @@ xattr_entry_replace (struct ext2_xattr_header *header,
  * this node.
  */
 error_t
-ext2_xattr_free (struct node *np)
+ext2_free_xattr_block (struct node *np)
 {
   error_t err;
   block_t blkno;
@@ -834,7 +833,7 @@ ext2_set_xattr (struct node *np, const char *name, const char *value, int len,
 	  disk_cache_block_deref (block);
 	  dino_deref (ei);
 
-	  return ext2_xattr_free (np);
+	  return ext2_free_xattr_block (np);
 	}
       else
 	{
