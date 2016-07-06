@@ -26,6 +26,7 @@
 #include <sys/stat.h>
 #include <sys/statfs.h>
 #include <sys/statvfs.h>
+#include <sys/xattr.h>
 
 /* these flags aren't actually defined by a header file yet, so temporarily
    disable them if necessary.  */
@@ -540,81 +541,62 @@ error_t
 diskfs_set_translator (struct node *np, const char *name, unsigned namelen,
 		       struct protid *cred)
 {
-  daddr_t blkno;
+  int len;
   error_t err;
-  char buf[block_size];
-  struct ext2_inode *di;
 
   assert (!diskfs_readonly);
-
-  if (sblock->s_creator_os != EXT2_OS_HURD)
-    return EOPNOTSUPP;
-
-  if (namelen + 2 > block_size)
-    return ENAMETOOLONG;
 
   err = diskfs_catch_exception ();
   if (err)
     return err;
 
-  di = dino_ref (np->cache_id);
-  blkno = di->i_translator;
-
-  if (namelen && !blkno)
+  /* If a old translator record found, clear it */
+  if (sblock->s_creator_os == EXT2_OS_HURD)
     {
-      /* Allocate block for translator */
-      blkno =
-	ext2_new_block ((diskfs_node_disknode (np)->info.i_block_group
-			 * EXT2_BLOCKS_PER_GROUP (sblock))
-			+ sblock->s_first_data_block,
-			0, 0, 0);
-      if (blkno == 0)
+      daddr_t blkno;
+      struct ext2_inode *di;
+
+      di = dino_ref (np->cache_id);
+      blkno = di->i_translator;
+
+      if (blkno)
 	{
-	  dino_deref (di);
-	  diskfs_end_catch_exception ();
-	  return ENOSPC;
+	  ext2_warning("Old tranlator record found, clear it");
+
+	  /* Clear block for translator going away. */
+	  di->i_translator = 0;
+	  diskfs_node_disknode (np)->info_i_translator = 0;
+	  record_global_poke (di);
+	  ext2_free_blocks (blkno, 1);
+
+	  np->dn_stat.st_blocks -= 1 << log2_stat_blocks_per_fs_block;
+	  np->dn_stat.st_mode &= ~S_IPTRANS;
+	  np->dn_set_ctime = 1;
 	}
-
-      di->i_translator = blkno;
-      diskfs_node_disknode (np)->info_i_translator = blkno;
-      record_global_poke (di);
-
-      np->dn_stat.st_blocks += 1 << log2_stat_blocks_per_fs_block;
-      np->dn_set_ctime = 1;
+      else
+	dino_deref (di);
     }
-  else if (!namelen && blkno)
+
+  /* Use xattr to store translator record, with key "gnu.translator" */
+  err = ext2_get_xattr(np, "gnu.translator", NULL, &len);
+  if (err && err != ENODATA)
+    return err;
+
+  if (namelen && err == ENODATA)
     {
-      /* Clear block for translator going away. */
-      di->i_translator = 0;
-      diskfs_node_disknode (np)->info_i_translator = 0;
-      record_global_poke (di);
-      ext2_free_blocks (blkno, 1);
-
-      np->dn_stat.st_blocks -= 1 << log2_stat_blocks_per_fs_block;
-      np->dn_stat.st_mode &= ~S_IPTRANS;
-      np->dn_set_ctime = 1;
-    }
-  else
-    dino_deref (di);
-
-  if (namelen)
-    {
-      void *blkptr;
-
-      buf[0] = namelen & 0xFF;
-      buf[1] = (namelen >> 8) & 0xFF;
-      memcpy (buf + 2, name, namelen);
-
-      blkptr = disk_cache_block_ref (blkno);
-      memcpy (blkptr, buf, block_size);
-      record_global_poke (blkptr);
+      err = ext2_set_xattr(np, "gnu.translator", name, namelen, XATTR_CREATE);
 
       np->dn_stat.st_mode |= S_IPTRANS;
       np->dn_set_ctime = 1;
     }
+  else if (!namelen && !err)
+    {
+      err = ext2_set_xattr(np, "gnu.translator", NULL, 0, 0);
+    }
 
   diskfs_end_catch_exception ();
   return err;
+
 }
 
 /* Implement the diskfs_get_translator callback from the diskfs library.
@@ -623,37 +605,59 @@ error_t
 diskfs_get_translator (struct node *np, char **namep, unsigned *namelen)
 {
   error_t err = 0;
-  daddr_t blkno;
-  unsigned datalen;
-  void *transloc;
-  struct ext2_inode *di;
-
-  assert (sblock->s_creator_os == EXT2_OS_HURD);
+  int datalen;
 
   err = diskfs_catch_exception ();
   if (err)
     return err;
 
-  di = dino_ref (np->cache_id);
-  blkno = di->i_translator;
-  dino_deref (di);
-  assert (blkno);
-  transloc = disk_cache_block_ref (blkno);
-
-  datalen =
-    ((unsigned char *)transloc)[0] + (((unsigned char *)transloc)[1] << 8);
-  if (datalen > block_size - 2)
-    err = EFTYPE;		/* ? */
-  else
+  /* If a old translator record found, read it firstly */
+  if (sblock->s_creator_os == EXT2_OS_HURD)
     {
-      *namep = malloc (datalen);
-      if (!*namep)
-	err = ENOMEM;
-      else
-	memcpy (*namep, transloc + 2, datalen);
+      daddr_t blkno;
+      void *transloc;
+      struct ext2_inode *di;
+
+      di = dino_ref (np->cache_id);
+      blkno = di->i_translator;
+      dino_deref (di);
+
+      if (blkno)
+	{
+	  ext2_warning("This is a old translotor record, please update it");
+
+	  transloc = disk_cache_block_ref (blkno);
+	  datalen = ((unsigned char *)transloc)[0] +
+	    (((unsigned char *)transloc)[1] << 8);
+	  if (datalen > block_size - 2)
+	    err = EFTYPE;  /* ? */
+	  else
+	  {
+	    *namep = malloc (datalen);
+	    if (!*namep)
+	      err = ENOMEM;
+	    else
+	      memcpy (*namep, transloc + 2, datalen);
+	  }
+
+	  disk_cache_block_deref (transloc);
+	  diskfs_end_catch_exception ();
+
+	  *namelen = datalen;
+	  return err;
+	}
     }
 
-  disk_cache_block_deref (transloc);
+  err = ext2_get_xattr (np, "gnu.translator", NULL, &datalen);
+  if (err)
+    return err;
+
+  *namep = malloc (datalen);
+  if (!*namep)
+    err = ENOMEM;
+  else
+    err = ext2_get_xattr (np, "gnu.translator", *namep, &datalen);
+
   diskfs_end_catch_exception ();
 
   *namelen = datalen;
