@@ -371,3 +371,26 @@ routine file_get_source (
 	file: file_t;
 	RPT
 	out source: string_t);
+
+/* Return the LIST of extended attribute names of FILE.  */
+routine file_list_xattr (
+	file: file_t;
+	RPT
+	out list: data_t);
+
+/* Return the VALUE of the extended attribute identified by NAME of
+   FILE.  */
+routine file_get_xattr (
+	file: file_t;
+	RPT
+	name: string_t;
+	out value: data_t);
+
+/* Set the VALUE of the extended attribute identified by NAME
+   of FILE.  */
+routine file_set_xattr (
+	file: file_t;
+	RPT
+	name: string_t;
+	value: data_t;
+	flags: int);
