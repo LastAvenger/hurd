@@ -578,20 +578,19 @@ diskfs_set_translator (struct node *np, const char *name, unsigned namelen,
     }
 
   /* Use xattr to store translator record, with key "gnu.translator" */
-  err = ext2_get_xattr(np, "gnu.translator", NULL, &len);
-  if (err && err != ENODATA)
-    return err;
-
-  if (namelen && err == ENODATA)
+  if (namelen)
     {
-      err = ext2_set_xattr(np, "gnu.translator", name, namelen, XATTR_CREATE);
+      err = ext2_set_xattr (np, "gnu.translator", name, namelen, 0);
 
       np->dn_stat.st_mode |= S_IPTRANS;
       np->dn_set_ctime = 1;
     }
-  else if (!namelen && !err)
+  else
     {
-      err = ext2_set_xattr(np, "gnu.translator", NULL, 0, 0);
+      err = ext2_set_xattr (np, "gnu.translator", NULL, 0, 0);
+
+      np->dn_stat.st_mode &= ~S_IPTRANS;
+      np->dn_set_ctime = 1;
     }
 
   diskfs_end_catch_exception ();
