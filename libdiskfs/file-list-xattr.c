@@ -34,6 +34,19 @@ diskfs_S_file_list_xattr (struct protid *cred,
   np = cred->po->np;
 
   pthread_mutex_lock (&np->lock);
+
+  if (!S_ISLNK (np->dn_stat.st_mode) ||
+    !S_ISREG (np->dn_stat.st_mode) ||
+    !S_ISDIR (np->dn_stat.st_mode))
+    {
+      err = EOPNOTSUPP;
+    }
+  else
+    {
+      // TODO:
+      err = diskfs_list_xattr (np, *list, &len);
+    }
+
   pthread_mutex_unlock (&np->lock);
 
   return err;

@@ -1159,4 +1159,21 @@ struct store *diskfs_init_main (struct argp *startup_argp,
 /* Make errors go somewhere reasonable.  */
 void diskfs_console_stdio ();
 
+/* The user must define this function.  For locked node NP, Store its
+   extend attribute name list into newly malloced storage.  set *LEN
+   to the length of LIST.  */
+error_t diskfs_list_xattr (struct node *np, char *list, size_t *len);
+
+/* The user must define this function.  For locked node NP, Store its
+   extend attribute value associated with NAME into newly malloced storage.
+   set *LEN to the length of VALUE.  */
+error_t diskfs_get_xattr (struct node *np, const char *name, char *value,
+			  size_t *len);
+
+/* The user must define this function.  For locked node NP, Set the value
+   of the specified extend attribute name to be VALUE.
+   FLAG can be 0, XATTR_CREATE or XATTR_REPLACE).  */
+error_t diskfs_set_xattr (struct node *np, const char *name, const char *value,
+			  size_t len, int flag);
+
 #endif	/* hurd/diskfs.h */

@@ -376,7 +376,7 @@ routine file_get_source (
 routine file_list_xattr (
 	file: file_t;
 	RPT
-	out list: data_t);
+	out list: data_t, dealloc);
 
 /* Return the VALUE of the extended attribute identified by NAME of
    FILE.  */
@@ -384,7 +384,7 @@ routine file_get_xattr (
 	file: file_t;
 	RPT
 	name: string_t;
-	out value: data_t);
+	out value: data_t, dealloc);
 
 /* Set the VALUE of the extended attribute identified by NAME
    of FILE.  */
