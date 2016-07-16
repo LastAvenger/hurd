@@ -24,7 +24,7 @@ kern_return_t
 diskfs_S_file_set_xattr (struct protid *cred,
 			 char *name,
 			 char *value,
-			 size_t len,
+			 size_t valuelen,
 			 int flag)
 {
   struct node *np;
@@ -36,6 +36,18 @@ diskfs_S_file_set_xattr (struct protid *cred,
   np = cred->po->np;
 
   pthread_mutex_lock (&np->lock);
+
+  if (!S_ISLNK (np->dn_stat.st_mode) ||
+    !S_ISREG (np->dn_stat.st_mode) ||
+    !S_ISDIR (np->dn_stat.st_mode))
+    {
+      err = EINVAL;
+    }
+  else
+    {
+      err = diskfs_set_xattr (np, name, value, valuelen, flag);
+    }
+
   pthread_mutex_unlock (&np->lock);
 
   return err;

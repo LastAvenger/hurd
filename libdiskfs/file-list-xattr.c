@@ -23,7 +23,7 @@
 kern_return_t
 diskfs_S_file_list_xattr (struct protid *cred,
 			  char **list,
-			  size_t *len)
+			  size_t *listlen)
 {
   struct node *np;
   error_t err = 0;
@@ -39,12 +39,20 @@ diskfs_S_file_list_xattr (struct protid *cred,
     !S_ISREG (np->dn_stat.st_mode) ||
     !S_ISDIR (np->dn_stat.st_mode))
     {
-      err = EOPNOTSUPP;
+      err = EINVAL;
     }
   else
     {
-      // TODO:
-      err = diskfs_list_xattr (np, *list, &len);
+      size_t len;
+      err = diskfs_list_xattr (np, NULL, &len);
+      if (!err)
+	{
+	  if (len > *listlen)
+	    *list = mmap (0, len, PROT_READ|PROT_WRITE, MAP_ANON, 0, 0);
+
+	    err = diskfs_list_xattr (np, *list, &len);
+	    *listlen = len;
+	}
     }
 
   pthread_mutex_unlock (&np->lock);
