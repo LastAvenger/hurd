@@ -167,8 +167,16 @@ diskfs_user_read_node (struct node *np, struct lookup_context *ctx)
     {
       st->st_mode = di->i_mode | (di->i_mode_high << 16);
       st->st_mode &= ~S_ITRANS;
+
       if (di->i_translator)
 	st->st_mode |= S_IPTRANS;
+      else
+	{
+	  size_t datalen;
+	  err = ext2_get_xattr (np, "gnu.translator", NULL, &datalen);
+	  if (! err && datalen > 0)
+	    st->st_mode |= S_IPTRANS;
+	}
 
       st->st_uid = di->i_uid | (di->i_uid_high << 16);
       st->st_gid = di->i_gid | (di->i_gid_high << 16);
@@ -623,7 +631,7 @@ diskfs_get_translator (struct node *np, char **namep, unsigned *namelen)
 
       if (blkno)
 	{
-	  ext2_warning("This is a old translotor record, please update it");
+	  ext2_warning("This is an old translotor record, please update it");
 
 	  transloc = disk_cache_block_ref (blkno);
 	  datalen = ((unsigned char *)transloc)[0] +
