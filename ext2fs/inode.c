@@ -542,8 +542,6 @@ diskfs_set_translator (struct node *np, const char *name, unsigned namelen,
 		       struct protid *cred)
 {
   error_t err;
-  daddr_t blkno;
-  struct ext2_inode *di;
 
   assert (!diskfs_readonly);
 
@@ -551,17 +549,22 @@ diskfs_set_translator (struct node *np, const char *name, unsigned namelen,
   if (err)
     return err;
 
+  /* If xattr is supported for this filesystem, use xattr to store translator
+     record, otherwise, use legacy translator record */
   if (EXT2_HAS_COMPAT_FEATURE (sblock, EXT2_FEATURE_COMPAT_EXT_ATTR))
     {
       /* If a legacy translator record found, clear it */
       if (sblock->s_creator_os == EXT2_OS_HURD)
 	{
+	  daddr_t blkno;
+	  struct ext2_inode *di;
+
 	  di = dino_ref (np->cache_id);
 	  blkno = di->i_translator;
 
 	  if (blkno)
 	    {
-	      ext2_warning("Old tranlator record found, clear it");
+	      ext2_warning("Old translator record found, clear it");
 
 	      /* Clear block for translator going away. */
 	      di->i_translator = 0;
@@ -579,16 +582,25 @@ diskfs_set_translator (struct node *np, const char *name, unsigned namelen,
 
       /* Use xattr to store translator record, with key "gnu.translator" */
       if (namelen)
-	err = ext2_set_xattr (np, "gnu.translator", name, namelen, 0);
-      else
-	err = ext2_set_xattr (np, "gnu.translator", NULL, 0, 0);
+	{
+	  err = ext2_set_xattr (np, "gnu.translator", name, namelen, 0);
 
-      if (err)
-	return err;
+	  np->dn_stat.st_mode |= S_IPTRANS;
+	  np->dn_set_ctime = 1;
+	}
+      else
+	{
+	  err = ext2_set_xattr (np, "gnu.translator", NULL, 0, 0);
+
+	  np->dn_stat.st_mode &= ~S_IPTRANS;
+	  np->dn_set_ctime = 1;
+	}
     }
   else
     {
       /* Use legacy translator record when xattr is no supported */
+      daddr_t blkno;
+      struct ext2_inode *di;
       char buf[block_size];
 
       if (sblock->s_creator_os != EXT2_OS_HURD)
@@ -596,10 +608,6 @@ diskfs_set_translator (struct node *np, const char *name, unsigned namelen,
 
       if (namelen + 2 > block_size)
 	return ENAMETOOLONG;
-
-      err = diskfs_catch_exception ();
-      if (err)
-	return err;
 
       di = dino_ref (np->cache_id);
       blkno = di->i_translator;
@@ -653,11 +661,10 @@ diskfs_set_translator (struct node *np, const char *name, unsigned namelen,
 	  memcpy (blkptr, buf, block_size);
 	  record_global_poke (blkptr);
 
+	  np->dn_stat.st_mode |= S_IPTRANS;
+	  np->dn_set_ctime = 1;
 	}
     }
-
-  np->dn_stat.st_mode |= S_IPTRANS;
-  np->dn_set_ctime = 1;
 
   diskfs_end_catch_exception ();
   return err;
@@ -689,7 +696,10 @@ diskfs_get_translator (struct node *np, char **namep, unsigned *namelen)
 
       if (blkno)
 	{
-	  ext2_warning("This is a old translotor record, please update it");
+	  /* If xattr is no supported by this filesystem,
+	     don't report a warning */
+	  if (EXT2_HAS_COMPAT_FEATURE (sblock, EXT2_FEATURE_COMPAT_EXT_ATTR))
+	    ext2_warning("This is a old translotor record, please update it");
 
 	  transloc = disk_cache_block_ref (blkno);
 	  datalen = ((unsigned char *)transloc)[0] +
