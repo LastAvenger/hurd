@@ -85,8 +85,8 @@ xattr_entry_hash (struct ext2_xattr_header *header,
   for (n = 0; n < entry->e_name_len; n++)
     {
       hash = (hash << NAME_HASH_SHIFT)
-        ^ (hash >> (8 * sizeof (hash) - NAME_HASH_SHIFT))
-	    ^ *name++;
+	     ^ (hash >> (8 * sizeof (hash) - NAME_HASH_SHIFT))
+	     ^ *name++;
     }
 
   if (entry->e_value_block == 0 && entry->e_value_size != 0)
@@ -96,8 +96,8 @@ xattr_entry_hash (struct ext2_xattr_header *header,
 	      EXT2_XATTR_PAD_BITS; n; n--)
 	{
 	  hash = (hash << VALUE_HASH_SHIFT)
-	      ^ (hash >> (8 * sizeof (hash) - VALUE_HASH_SHIFT))
-	      ^ *value++;
+		 ^ (hash >> (8 * sizeof (hash) - VALUE_HASH_SHIFT))
+		 ^ *value++;
 	}
     }
 
@@ -135,8 +135,8 @@ xattr_entry_rehash (struct ext2_xattr_header *header,
 	}
 
       hash = (hash << BLOCK_HASH_SHIFT)
-	  ^ (hash >> (8 * sizeof (hash) - BLOCK_HASH_SHIFT))
-	  ^ position->e_hash;
+	     ^ (hash >> (8 * sizeof (hash) - BLOCK_HASH_SHIFT))
+	     ^ position->e_hash;
 
       position = EXT2_XATTR_ENTRY_NEXT (position);
     }
@@ -786,7 +786,7 @@ ext2_set_xattr (struct node *np, const char *name, const char *value, int len,
 	}
       else
 	err = xattr_entry_create (header, entry, location, name, value, len,
-	  rest);
+				  rest);
     }
   else if (value && flags & XATTR_REPLACE)
     {
@@ -804,7 +804,7 @@ ext2_set_xattr (struct node *np, const char *name, const char *value, int len,
 	err = xattr_entry_replace (header, entry, location, value, len, rest);
       else
 	err = xattr_entry_create (header, entry, location, name, value, len,
-		rest);
+				  rest);
     }
   else
     {
