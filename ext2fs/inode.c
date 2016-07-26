@@ -599,7 +599,11 @@ diskfs_set_translator (struct node *np, const char *name, unsigned namelen,
     }
   else
     {
+      /* Removing the translator.  */
       err = ext2_set_xattr (np, "gnu.translator", NULL, 0, 0);
+      if (err == ENODATA)
+        /* Happens if the key did not exist in the first place.  */
+        err = 0;
 
       np->dn_stat.st_mode &= ~S_IPTRANS;
       np->dn_set_ctime = 1;
