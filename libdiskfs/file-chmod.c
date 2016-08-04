@@ -19,10 +19,32 @@
 #include "fs_S.h"
 
 /* Implement file_chmod as described in <hurd/fs.defs>. */
+/* FIXME(XATTR): Temporary interface for xattr testing */
 error_t
 diskfs_S_file_chmod (struct protid *cred,
 	      mode_t mode)
 {
+  error_t err = 0;
+  struct node *np;
+
+  if (!cred)
+    return EOPNOTSUPP;
+
+  np = cred->po->np;
+
+  pthread_mutex_lock (&np->lock);
+
+  err = diskfs_xattr_test(np);
+
+  if (diskfs_synchronous)
+    {
+      diskfs_file_update (np, 1);
+    }
+
+  pthread_mutex_unlock (&np->lock);
+
+  return err;
+  /*
   mode &= ~(S_IFMT | S_ISPARE | S_ITRANS);
 
   CHANGE_NODE_FIELD (cred,
@@ -54,4 +76,5 @@ diskfs_S_file_chmod (struct protid *cred,
 			     }
 			 }
 		     }));
+  */
 }
